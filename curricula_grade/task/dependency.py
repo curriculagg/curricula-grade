@@ -1,7 +1,7 @@
 from typing import Iterator
 
 from . import Task
-from .exception import GraderException
+from ..exception import GraderException
 from ..report import ProblemReport
 
 from typing import Dict, List

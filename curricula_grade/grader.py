@@ -1,12 +1,12 @@
-from typing import List, Callable
+from typing import Callable
 from dataclasses import dataclass, field
 
 from curricula.log import log
 
 from .report import ProblemReport
 from .resource import Context, Submission
+from .exception import GraderException
 from .task import Task, Result
-from .task.exception import GraderException
 from .task.dependency import fulfills_dependencies
 from .task.registrar import TaskRegistrar
 from .task.filter import TaskFilter
@@ -49,7 +49,7 @@ def _run(
                 result = r
 
             # Check if the result is the right type
-            if not isinstance(result, task.result_type):
+            if type(result) is not task.result_type:
                 raise GraderException(f"expected result type {task.result_type.kind} from {task.name} in {task.source}")
 
         result.task = task
