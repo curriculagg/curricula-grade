@@ -1,0 +1,19 @@
+# User-specific stuff
+.idea/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__
+*.pyc
+
+# Local
+*.report.json
+artifacts/
+reports/
+
+# Distribution
+/dist/
+/build/
+*.egg-info
