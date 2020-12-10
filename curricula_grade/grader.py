@@ -8,7 +8,7 @@ from .resource import Context, Submission
 from .task import Task, Result
 from .task.exception import GraderException
 from .task.dependency import fulfills_dependencies
-from .task.registrar import Registrar
+from .task.registrar import TaskRegistrar
 from .task.filter import TaskFilter
 from .task.collection import TaskCollection
 
@@ -66,10 +66,10 @@ class Grader:
     problem: "GradingProblem" = field(init=False)
 
     # Task registration
-    register: Registrar
+    register: TaskRegistrar
 
     def __post_init__(self):
-        self.register = Registrar(tasks=self.tasks)
+        self.register = TaskRegistrar(tasks=self.tasks)
 
     def run(self, context: Context, submission: Submission) -> ProblemReport:
         """Build and test."""

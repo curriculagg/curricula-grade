@@ -1,6 +1,8 @@
 import unittest
 
-from curricula_grade.dependency import topological_sort
+from curricula_grade.task.dependency import topological_sort
+from curricula_grade.task.registrar import TaskRegistrar
+from curricula_grade.task.collection import TaskCollection
 
 import mock
 
@@ -34,3 +36,12 @@ class DependencyTests(unittest.TestCase):
         self.assertEqual(len(tasks), 4)
         self.assertEqual(tasks[0].name, "a")
         self.assertEqual(tasks[3].name, "d")
+
+
+class RegistrarTests(unittest.TestCase):
+    """Check registration methods."""
+
+    def test_register_manual(self):
+        registrar = TaskRegistrar(TaskCollection())
+        registrar[mock.Result](runnable=mock.runnable, details=dict(name="a"))
+        self.assertIn("a", [task.name for task in registrar.tasks])

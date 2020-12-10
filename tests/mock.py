@@ -1,9 +1,16 @@
-from curricula_grade.task import Task, Dependencies, Result, Error
+from curricula_grade.task import Task, Dependencies, Result as _Result
+from curricula_grade.task.error import Error
 
 
-class MockResult(Result):
+class Result(_Result):
+    kind = "mock"
+
     def __init__(self, complete: bool = True, passing: bool = True, error: Error = None, details: dict = None):
         super().__init__(complete=complete, passing=passing, error=error, details=details)
+
+
+def runnable():
+    return Result()
 
 
 def task(name: str, **details):
@@ -13,12 +20,13 @@ def task(name: str, **details):
         description="A task",
         kind="unit",
         dependencies=Dependencies(set(), set()),
-        runnable=lambda: MockResult(),
+        runnable=runnable(),
         details=dict(),
+        graded=True,
         weight=1,
         source="testing",
         tags=set(),
-        result_type=MockResult)
+        result_type=Result)
     details["dependencies"] = Dependencies.from_details(details)
     defaults.update(details)
     return Task(name=name, **defaults)

@@ -8,7 +8,7 @@ from curricula.log import log
 
 from .error import Error
 
-__all__ = ("Result", "Dependencies", "Task", "Runnable")
+__all__ = ("Result", "Dependencies", "Task", "Runnable", "Error")
 
 
 @dataclass(init=False, eq=False)

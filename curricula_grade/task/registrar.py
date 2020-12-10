@@ -1,5 +1,5 @@
 import functools
-from typing import List, Type, Optional, Callable
+from typing import Type, Optional, Callable
 from decimal import Decimal
 
 from curricula.library.debug import get_source_location
@@ -32,7 +32,7 @@ class RegistrarEndpoint:
         self._register = _register
         self.result_type = result_type
 
-    def __call__(self, **details) -> Optional[RegistrarDecorator]:
+    def __call__(self, **details):
         """Register a runnable or ask for a decorator."""
 
         # If details were passed, explode into details
@@ -48,7 +48,7 @@ class RegistrarEndpoint:
         return functools.partial(self._register, details=details, result_type=self.result_type)
 
 
-class Registrar:
+class TaskRegistrar:
     """Utility class for registering tasks."""
 
     tasks: TaskCollection
@@ -95,7 +95,7 @@ class Registrar:
             result_type=result_type))
         return runnable
 
-    def __getitem__(self, result_type: Type[Result]) -> RegistrarCallable:
+    def __getitem__(self, result_type: Type[Result]):
         """Allow use of custom result types."""
 
         return functools.partial(self._register, result_type=result_type)
