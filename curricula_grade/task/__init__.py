@@ -7,6 +7,7 @@ from decimal import Decimal
 from curricula.log import log
 
 from .error import Error
+from .exception import GraderException
 
 __all__ = ("Result", "Dependencies", "Task", "Runnable", "Error")
 
@@ -104,11 +105,12 @@ class Dependencies:
         value = details.pop(name, None)
         if value is None:
             return set()
-        if isinstance(value, str):
+        elif isinstance(value, str):
             return {value}
-        if isinstance(value, set):
+        elif isinstance(value, set):
             return value
-        return set(value)
+        else:
+            return set(value)
 
     @classmethod
     def from_details(cls, details: dict):
@@ -123,12 +125,11 @@ class Dependencies:
 
 
 @dataclass(eq=False)
-class Task(Generic[TResult]):
+class Task:
     """Superclass for check, build, run."""
 
     name: str
     description: str
-    kind: str
 
     dependencies: Dependencies
     runnable: Runnable[Result]
@@ -141,7 +142,7 @@ class Task(Generic[TResult]):
 
     result_type: Type[Result]
 
-    def run(self, resources: Dict[str, Any]) -> TResult:
+    def run(self, resources: Dict[str, Any]) -> Result:
         """Do the dependency injection for the runnable."""
 
         dependencies = {}

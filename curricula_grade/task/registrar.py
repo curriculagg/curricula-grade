@@ -1,51 +1,37 @@
 import functools
-from typing import Type, Optional, Callable
+from typing import Type, Any, Set, Optional
 from decimal import Decimal
 
 from curricula.library.debug import get_source_location
 
-from . import Task, Runnable, Dependencies, Result
-from .exception import GraderException
+from . import Runnable, Task, Result, Dependencies
+from .profile import TaskProfile
 from .collection import TaskCollection
-
-from ..build import BuildResult
-from ..check import CheckResult
-from ..cleanup import CleanupResult
-from ..test.code import CodeResult
-from ..test.correctness import CorrectnessResult
-from ..test.complexity import ComplexityResult
-from ..test.memory import MemoryResult
+from .exception import GraderException
 
 
-RegistrarDecorator = Callable[[Runnable], Runnable]
-RegistrarCallable = Callable[[Runnable, dict], Runnable]
+def is_some(value: Any) -> bool:
+    """Shorthand for checking if identical to None."""
+
+    return value is not None
 
 
-class RegistrarEndpoint:
-    """Generates a function for a specific task."""
+def first_some(*args: Any) -> Any:
+    """Return the first arg that is not None."""
 
-    result_type: Type[Result]
+    try:
+        return next(filter(None, args))
+    except StopIteration:
+        return None
 
-    def __init__(self, _register, result_type: Type[Result]):
-        """Cache base registrar and result_type."""
 
-        self._register = _register
-        self.result_type = result_type
+def underwrite(source: dict, destination: dict) -> dict:
+    """Fill keys in source not defined in destination."""
 
-    def __call__(self, **details):
-        """Register a runnable or ask for a decorator."""
-
-        # If details were passed, explode into details
-        inner_details = details.pop("details", {})
-        details.update(inner_details)
-
-        # Check if we were passed a runnable in kwargs
-        runnable = details.pop("runnable", None)
-        if runnable is not None:
-            self._register(runnable=runnable, details=details, result_type=self.result_type)
-            return None
-
-        return functools.partial(self._register, details=details, result_type=self.result_type)
+    for key, value in source.items():
+        if key not in destination:
+            destination[key] = value
+    return destination
 
 
 class TaskRegistrar:
@@ -54,56 +40,70 @@ class TaskRegistrar:
     tasks: TaskCollection
 
     def __init__(self, tasks: TaskCollection):
+        """Assign task collection and dynamically create shortcuts."""
+
         self.tasks = tasks
 
-    def _register(self, runnable: Runnable, details: dict, result_type: Type[Result]):
-        """Wrap the runnable as a task and add it to the grader."""
+    def __call__(self, runnable: Any, details: dict, result_type: Type[Result] = Result):
+        """Explicitly register a runnable."""
 
-        name = details.pop("name", None)
-        if name is None:
-            name = getattr(runnable, "__qualname__", None)
-            if name is None:
-                raise GraderException("No viable candidate for task name, please provide during registration")
+        self._register_with_result_type(runnable=runnable, details=details, result_type=result_type)
 
-        description = details.pop("description", None) or runnable.__doc__
-        graded = details.pop("graded", True)
-        weight = Decimal(details.pop("weight", 1))
-        dependencies = Dependencies.from_details(details)
+    def __getitem__(self, profile: Type[TaskProfile]):
+        """Partial in the result_type."""
 
-        tags = details.pop("tags", None)
-        if tags is None:
-            tags = set()
-        elif not isinstance(tags, set):
-            raise GraderException(f"Tags must be a set or None")
+        def register(runnable: Runnable = None, /, **details: dict):
+            """Return potentially a decorator or maybe not."""
 
-        for existing_task in self.tasks:
-            if existing_task.name == name:
-                raise GraderException(f"Duplicate task name \"{name}\"")
+            if runnable is not None:
+                self._register_with_profile(runnable=runnable, details=details, profile=profile)
+                return
 
-        # Create task, append
+            return functools.partial(self._register_with_profile, details=details, profile=profile)
+
+        return register
+
+    def _register_with_profile(self, runnable: Any, details: dict, profile: Type[TaskProfile]):
+        tags = TaskRegistrar._resolve_tags(details)
         self.tasks.push(Task(
-            name=name,
-            description=description,
-            kind=result_type.kind,
-            dependencies=dependencies,
+            name=TaskRegistrar._resolve_name(runnable, details),
+            description=TaskRegistrar._resolve_description(runnable, details),
+            dependencies=Dependencies.from_details(details),
             runnable=runnable,
-            details=details,
-            weight=weight,
-            source=get_source_location(2),
-            tags=tags,
-            graded=graded,
-            result_type=result_type))
-        return runnable
+            graded=first_some(details.pop("graded", None), profile.graded, True),
+            weight=Decimal(first_some(details.pop("weight", None), profile.weight, 1)),
+            source=get_source_location(1),
+            tags=tags.union(profile.tags) if profile.tags is not None else tags,
+            result_type=profile.result_type,
+            details=underwrite(profile.details, details) if profile.details is not None else details))
 
-    def __getitem__(self, result_type: Type[Result]):
-        """Allow use of custom result types."""
+    def _register_with_result_type(self, runnable: Any, details: dict, result_type: Type[Result]):
+        self.tasks.push(Task(
+            name=TaskRegistrar._resolve_name(runnable, details),
+            description=TaskRegistrar._resolve_description(runnable, details),
+            dependencies=Dependencies.from_details(details),
+            runnable=runnable,
+            graded=details.pop("graded", True),
+            weight=Decimal(details.pop("weight", 1)),
+            source=get_source_location(1),
+            tags=TaskRegistrar._resolve_tags(details),
+            result_type=result_type,
+            details=details))
 
-        return functools.partial(self._register, result_type=result_type)
+    @staticmethod
+    def _resolve_name(runnable: Runnable, details: dict) -> str:
+        if is_some(name := details.pop("name", None)):
+            return name
+        if is_some(name := getattr(runnable, "__qualname__", None)):
+            return name
+        raise GraderException("No viable candidate for task name, please provide during registration")
 
-    build = RegistrarEndpoint(_register=_register, result_type=BuildResult)
-    check = RegistrarEndpoint(_register=_register, result_type=CheckResult)
-    cleanup = RegistrarEndpoint(_register=_register, result_type=CleanupResult)
-    code = RegistrarEndpoint(_register=_register, result_type=CodeResult)
-    correctness = RegistrarEndpoint(_register=_register, result_type=CorrectnessResult)
-    complexity = RegistrarEndpoint(_register=_register, result_type=ComplexityResult)
-    memory = RegistrarEndpoint(_register=_register, result_type=MemoryResult)
+    @staticmethod
+    def _resolve_description(runnable: Runnable, details: dict) -> Optional[str]:
+        return details.pop("description", None) or runnable.__doc__
+
+    @staticmethod
+    def _resolve_tags(details: dict) -> Set[str]:
+        if isinstance(tags := details.pop("tags", set()), set):
+            return tags
+        raise GraderException("tags must either be a set of strings or None")

@@ -1,16 +1,21 @@
-from curricula_grade.task import Task, Dependencies, Result as _Result
+from curricula_grade.task import Task, Dependencies, Result
+from curricula_grade.task.profile import TaskProfile
 from curricula_grade.task.error import Error
 
 
-class Result(_Result):
+class MockResult(Result):
     kind = "mock"
 
     def __init__(self, complete: bool = True, passing: bool = True, error: Error = None, details: dict = None):
         super().__init__(complete=complete, passing=passing, error=error, details=details)
 
 
-def runnable():
-    return Result()
+class Mock(TaskProfile):
+    result_type = MockResult
+
+
+def runnable() -> MockResult:
+    return MockResult()
 
 
 def task(name: str, **details):
@@ -18,7 +23,6 @@ def task(name: str, **details):
 
     defaults = dict(
         description="A task",
-        kind="unit",
         dependencies=Dependencies(set(), set()),
         runnable=runnable(),
         details=dict(),

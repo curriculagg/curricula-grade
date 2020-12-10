@@ -43,5 +43,19 @@ class RegistrarTests(unittest.TestCase):
 
     def test_register_manual(self):
         registrar = TaskRegistrar(TaskCollection())
-        registrar[mock.Result](runnable=mock.runnable, details=dict(name="a"))
+        registrar(runnable=mock.runnable, details=dict(name="a"), result_type=mock.MockResult)
+        self.assertIn("a", [task.name for task in registrar.tasks])
+
+    def test_sugared(self):
+        registrar = TaskRegistrar(TaskCollection())
+        registrar[mock.Mock](mock.runnable, name="a")
+        self.assertIn("a", [task.name for task in registrar.tasks])
+
+    def test_decorator(self):
+        registrar = TaskRegistrar(TaskCollection())
+
+        @registrar[mock.Mock](name="a")
+        def a():
+            return mock.MockResult()
+
         self.assertIn("a", [task.name for task in registrar.tasks])
