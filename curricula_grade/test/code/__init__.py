@@ -2,8 +2,8 @@ from typing import Optional
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ...task import Result
-from ...task.profile import TaskProfile
+from ...grader.task import Result
+from ...grader.task.profile import TaskProfile
 
 
 @dataclass

@@ -7,7 +7,6 @@ from decimal import Decimal
 from curricula.log import log
 
 from .error import Error
-from ..exception import GraderException
 
 __all__ = ("Result", "Dependencies", "Task", "Runnable", "Error")
 

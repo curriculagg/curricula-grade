@@ -13,7 +13,7 @@ from typing import Iterator, Iterable, Tuple
 
 from curricula.log import log
 from .models import GradingAssignment
-from .report import AssignmentReport
+from .grader.report import AssignmentReport
 from .resource import Submission, Context
 
 

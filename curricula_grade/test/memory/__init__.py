@@ -1,8 +1,9 @@
 from typing import Optional
 
 from curricula.library.valgrind import ValgrindReport
-from ...task import Result, Error
-from ...task.profile import TaskProfile
+
+from ...grader.task import Result
+from ...grader.task.profile import TaskProfile
 
 
 class MemoryResult(Result):

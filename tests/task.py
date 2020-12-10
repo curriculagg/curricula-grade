@@ -1,8 +1,8 @@
 import unittest
 
-from curricula_grade.task.dependency import topological_sort
-from curricula_grade.task.registrar import TaskRegistrar
-from curricula_grade.task.collection import TaskCollection
+from curricula_grade.grader.task.dependency import topological_sort
+from curricula_grade.grader.task.registrar import TaskRegistrar
+from curricula_grade.grader.task.collection import TaskCollection
 from curricula_grade.exception import GraderException
 
 import mock
@@ -74,3 +74,9 @@ class CollectionTests(unittest.TestCase):
         collection = TaskCollection()
         collection.push(mock.task("a"))
         self.assertRaises(GraderException, lambda: collection.push(mock.task("a")))
+
+
+class FilterTests(unittest.TestCase):
+    """Check if the filter works."""
+
+

@@ -9,7 +9,7 @@ from .task import Result
 from curricula.models import serialize_datetime, deserialize_datetime
 
 if typing.TYPE_CHECKING:
-    from .models import GradingAssignment, GradingProblem
+    from ..models import GradingAssignment, GradingProblem
 
 
 @dataclass(eq=False)
@@ -75,7 +75,7 @@ class ProblemReport:
         for task in problem.grader.tasks:
             result_data = data["results"].get(task.name)
             if result_data is not None:
-                results[task.name] = task.Result.load(result_data, task)
+                results[task.name] = task.result_type.load(result_data, task)
             else:
                 partial = True
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from . import Task
 from .collection import TaskCollection
 from .dependency import flatten_dependencies
-from ..resource import Context
+from ...resource import Context
 
 
 @dataclass(eq=False, init=False)

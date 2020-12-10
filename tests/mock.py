@@ -1,6 +1,6 @@
-from curricula_grade.task import Task, Dependencies, Result
-from curricula_grade.task.profile import TaskProfile
-from curricula_grade.task.error import Error
+from curricula_grade.grader.task import Task, Dependencies, Result
+from curricula_grade.grader.task.profile import TaskProfile
+from curricula_grade.grader.task.error import Error
 
 
 class MockResult(Result):

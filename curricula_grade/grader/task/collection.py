@@ -2,7 +2,7 @@ from typing import List, Iterator
 
 from . import Task
 from .dependency import topological_sort
-from ..exception import GraderException
+from ...exception import GraderException
 
 
 class TaskCollection:

@@ -7,7 +7,7 @@ from curricula.library.debug import get_source_location
 from . import Runnable, Task, Result, Dependencies
 from .profile import TaskProfile
 from .collection import TaskCollection
-from ..exception import GraderException
+from ...exception import GraderException
 
 
 def is_some(value: Any) -> bool:

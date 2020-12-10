@@ -1,5 +1,5 @@
-from ...task import Result, Error
-from ...task.profile import TaskProfile
+from ...grader.task import Result
+from ...grader.task.profile import TaskProfile
 
 
 class ComplexityResult(Result):

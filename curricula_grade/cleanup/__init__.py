@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from ..task import Result, Error
-from ..task.profile import TaskProfile
+from ..grader.task import Result, Error
+from ..grader.task.profile import TaskProfile
 
 
 @dataclass
