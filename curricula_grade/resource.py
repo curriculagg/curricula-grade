@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional, Any, Set
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -24,7 +24,20 @@ class Submission(Resource):
 class Context(Resource):
     """Extra context."""
 
-    options: Dict[str, str] = field(default_factory=dict)
+    options: Dict[str, Any]
+    task_names: Optional[Set[str]] = None
+    task_tags: Optional[Set[str]] = None
+
+    @classmethod
+    def from_options(cls, options: Dict[str, Any]) -> "Context":
+        """Parse a couple of the predefined options out of the dictionary."""
+
+        self = cls(options)
+        if (tasks := options.pop("options", None)) is not None:
+            self.task_names = set(tasks)
+        if (tags := options.pop("tags", None)) is not None:
+            self.task_tags = set(tags)
+        return self
 
 
 @dataclass(eq=False)

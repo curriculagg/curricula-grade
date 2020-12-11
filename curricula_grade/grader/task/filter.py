@@ -1,63 +1,63 @@
-from typing import Set, Optional, Iterable
-from dataclasses import dataclass
+import itertools
+from typing import Set, Iterable, Iterator
 
-from . import Task
 from .collection import TaskCollection
 from .dependency import flatten_dependencies
 from ...resource import Context
 
 
-@dataclass(eq=False, init=False)
-class TaskFilter:
-    """Small helper to check whether a task should be run."""
+def filter_problem_specific(prefix: str, collection: Iterable[str]) -> Set[str]:
+    """Filter in items prefaced by prefix:xyz as xyz."""
 
-    tags: Optional[Set[str]] = None
-    task_names: Optional[Set[str]] = None
-    related_task_names: Optional[Set[str]] = None
+    result = set()
+    for item in collection:
+        if ":" in item:
+            if item.startswith(f"{prefix}:"):
+                result.add(item.split(":", maxsplit=1)[1])
+        else:
+            result.add(item)
+    return result
 
-    def __init__(self, tasks: TaskCollection, context: Context, problem_short: str):
-        """Build from context."""
 
-        filtered_tags = context.options.get("tags")
-        if filtered_tags is not None:
-            self.tags = self.filter_problem_specific(filtered_tags, problem_short)
+def filter_tasks_by_tag(tags: Set[str], problem_short: str, tasks: TaskCollection) -> Iterator[str]:
+    """Return a set of task names by tag."""
 
-        # Assemble all tasks and dependencies
-        filtered_task_names = context.options.get("tasks")
-        if filtered_task_names is not None:
-            self.task_names = self.filter_problem_specific(filtered_task_names, problem_short)
+    tags = filter_problem_specific(problem_short, tags)
+    for task in tasks:
+        if not tags.isdisjoint(task.tags):
+            yield task.name
 
-            # We also need to pull all dependencies
-            self.related_task_names = set()
-            task_lookup = {task.name: task for task in tasks}
-            for filtered_task_name in self.task_names:
-                for related_task_name in flatten_dependencies(filtered_task_name, task_lookup):
-                    self.related_task_names.add(related_task_name)
 
-    def __call__(self, task: Task) -> bool:
-        """Check if a task should be run."""
+def filter_tasks_by_name(names: Set[str], problem_short: str, tasks: TaskCollection) -> Iterator[str]:
+    """Filter by name match."""
 
-        if self.tags is not None:
-            if self.tags.isdisjoint(task.tags):
-                return False
-        if self.task_names is not None:
-            if task.name not in self.task_names and task.name not in self.related_task_names:
-                return False
-        return True
+    names = filter_problem_specific(problem_short, names)
 
-    @property
-    def has_effect(self) -> bool:
-        return self.tags is not None or self.task_names is not None
+    # Allow wildcard to group by problem
+    if "*" in names:
+        for task in tasks:
+            yield task.name
 
-    @staticmethod
-    def filter_problem_specific(collection: Iterable[str], prefix: str) -> Set[str]:
-        """Filter in items prefaced by prefix:xyz as xyz."""
+    # Normal filter
+    else:
+        for task in tasks:
+            if task.name in names:
+                yield task.name
 
-        result = set()
-        for item in collection:
-            if ":" in item:
-                if item.startswith(f"{prefix}:"):
-                    result.add(item.split(":", maxsplit=1)[1])
-            else:
-                result.add(item)
-        return result
+
+def filter_tasks(context: Context, problem_short: str, tasks: TaskCollection) -> Set[str]:
+    """Check if a task should be run."""
+
+    task_names = set()
+    if context.task_tags is not None:
+        task_names += set(filter_tasks_by_tag(context.task_tags, problem_short, tasks))
+    if context.task_names is not None:
+        task_names += set(filter_tasks_by_name(context.task_names, problem_short, tasks))
+
+    # Add dependencies
+    task_lookup = {task.name: task for task in tasks}
+    for task_name in task_names.copy():
+        for dependency_task_name in flatten_dependencies(task_name, task_lookup):
+            task_names.add(dependency_task_name)
+
+    return task_names

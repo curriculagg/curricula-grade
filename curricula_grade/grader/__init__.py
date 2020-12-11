@@ -2,16 +2,14 @@ from dataclasses import dataclass, field
 
 from curricula.log import log
 
-from ..grader.report import ProblemReport
-from ..resource import Context, Submission
-from ..exception import GraderException
-
 from .task import Result
+from .report import ProblemReport
 from .task.dependency import fulfills_dependencies
 from .task.registrar import TaskRegistrar
-from .task.filter import TaskFilter
+from .task.filter import filter_tasks
 from .task.collection import TaskCollection
-
+from ..resource import Context, Submission
+from ..exception import GraderException
 
 import typing
 
@@ -46,7 +44,7 @@ class Grader:
         resources.update(resources=resources)
 
         # Create the filter
-        task_filter = TaskFilter(self.tasks, context, self.problem.short)
+        filtered_task_names = filter_tasks(context=context, problem_short=self.problem.short, tasks=self.tasks)
 
         # Report
         report = ProblemReport.create(self.problem)
@@ -56,7 +54,7 @@ class Grader:
             log.debug(f"running task {task.name}")
 
             # Check conditions for whether this case is filtered out, if so report is partial
-            if not task_filter(task):
+            if task.name not in filtered_task_names:
                 report.partial = True
                 continue
 
