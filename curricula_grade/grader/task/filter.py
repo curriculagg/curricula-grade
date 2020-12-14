@@ -49,6 +49,9 @@ def filter_tasks_by_name(names: Set[str], problem_short: str, tasks: TaskCollect
 def filter_tasks(context: Context, problem_short: str, tasks: TaskCollection) -> Set[str]:
     """Check if a task should be run."""
 
+    if context.task_tags is None and context.task_names is None:
+        return set(task.name for task in tasks)
+
     task_names = set()
     if context.task_tags is not None:
         task_names |= set(filter_tasks_by_tag(context.task_tags, problem_short, tasks))

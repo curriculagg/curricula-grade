@@ -39,12 +39,12 @@ class TaskRegistrar:
 
     tasks: TaskCollection
 
-    def __init__(self, tasks: TaskCollection):
+    def __init__(self):
         """Assign task collection and dynamically create shortcuts."""
 
-        self.tasks = tasks
+        self.tasks = TaskCollection()
 
-    def __call__(self, runnable: Any, details: dict, result_type: Type[Result] = Result):
+    def register(self, runnable: Any, details: dict, result_type: Type[Result] = Result):
         """Explicitly register a runnable."""
 
         self._register_with_result_type(runnable=runnable, details=details, result_type=result_type)
@@ -72,10 +72,11 @@ class TaskRegistrar:
             runnable=runnable,
             graded=first_some(details.pop("graded", None), profile.graded, True),
             weight=Decimal(first_some(details.pop("weight", None), profile.weight, 1)),
+            points=Decimal(p) if is_some(p := first_some(details.pop("points", None), profile.points)) else None,
             source=get_source_location(1),
             tags=tags.union(profile.tags) if profile.tags is not None else tags,
             result_type=profile.result_type,
-            details=underwrite(profile.details, details) if profile.details is not None else details))
+            details=underwrite(profile.details, details) if profile.details is not None else details,))
 
     def _register_with_result_type(self, runnable: Any, details: dict, result_type: Type[Result]):
         self.tasks.push(Task(
@@ -85,10 +86,16 @@ class TaskRegistrar:
             runnable=runnable,
             graded=details.pop("graded", True),
             weight=Decimal(details.pop("weight", 1)),
+            points=Decimal(p) if is_some(p := details.pop("points", None)) else None,
             source=get_source_location(1),
             tags=TaskRegistrar._resolve_tags(details),
             result_type=result_type,
             details=details))
+
+    def weight(self) -> Decimal:
+        """Combined weight of all graded tasks."""
+
+        return sum(map(lambda t: t.weight, filter(lambda t: t.graded, self.tasks)), Decimal(0))
 
     @staticmethod
     def _resolve_name(runnable: Runnable, details: dict) -> str:

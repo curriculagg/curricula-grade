@@ -2,7 +2,7 @@ from typing import Optional
 
 from curricula.library.valgrind import ValgrindReport
 
-from ...grader.task import Result
+from ...grader.task import Result, Error
 from ...grader.task.profile import TaskProfile
 
 
@@ -64,5 +64,5 @@ class MemoryResult(Result):
         return dump
 
 
-class Code(TaskProfile):
+class Memory(TaskProfile):
     result_type = MemoryResult

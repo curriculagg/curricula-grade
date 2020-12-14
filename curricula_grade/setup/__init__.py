@@ -11,6 +11,6 @@ class SetupResult(Result):
         super().__init__(complete=complete, passing=passing, error=error, details=details)
 
 
-class Build(TaskProfile):
+class Setup(TaskProfile):
     graded = False
     result_type = SetupResult

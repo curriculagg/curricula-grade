@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from curricula.log import log
 
-__all__ = ("Message", "Score", "Result", "Dependencies", "Task", "Runnable", "Error")
+__all__ = ("Message", "Result", "Dependencies", "Task", "Runnable", "Error")
 
 
 @dataclass
@@ -27,28 +27,6 @@ class Message:
     @classmethod
     def load(cls, data: dict) -> "Message":
         return cls(kind=data["kind"], content=data["content"])
-
-
-DecimalArgument = Union[Decimal, float, str, Tuple[int, Sequence[int], int]]
-
-
-@dataclass(init=False)
-class Score:
-    """Result score."""
-
-    numerator: Decimal
-    denominator: Decimal
-
-    def __init__(self, numerator: DecimalArgument, denominator: DecimalArgument = 1):
-        self.numerator = Decimal(numerator)
-        self.denominator = Decimal(denominator)
-
-    def dump(self) -> dict:
-        return dict(numerator=str(self.numerator), denominator=str(self.denominator))
-
-    @classmethod
-    def load(cls, data: dict) -> "Score":
-        return cls(numerator=Decimal(data["numerator"]), denominator=Decimal(data["denominator"]))
 
 
 @dataclass
@@ -87,7 +65,7 @@ class Result(Exception, abc.ABC):
     details: dict
     error: Error
     messages: Optional[List[Message]]
-    score: Optional[Score]
+    score: Decimal
 
     task: "Task" = field(init=False, repr=False)
 
@@ -95,7 +73,7 @@ class Result(Exception, abc.ABC):
             self,
             complete: bool,
             passing: bool,
-            score: Score = None,
+            score: Decimal = None,
             error: Error = None,
             messages: List[Message] = None,
             details: dict = None):
@@ -118,7 +96,7 @@ class Result(Exception, abc.ABC):
         dump = dict(
             complete=self.complete,
             passing=self.passing,
-            score=self.score.dump() if self.score is not None else None,
+            score=str(self.score) if self.score is not None else None,
             error=self.error.dump(thin=thin) if self.error is not None else None,
             messages=[message.dump() for message in self.messages],
             task=dict(
@@ -133,7 +111,7 @@ class Result(Exception, abc.ABC):
         """Load a result from serialized."""
 
         data.pop("task")
-        score = Score.load(score_data) if (score_data := data.pop("score", None)) is not None else None
+        score = Decimal(score_data) if (score_data := data.pop("score", None)) is not None else None
         error = Error.load(error_data) if (error_data := data.pop("error", None)) is not None else None
         messages = list(map(Message.load, data.pop("messages")))
         self = cls(**data, score=score, error=error, messages=messages)
@@ -209,6 +187,7 @@ class Task:
 
     graded: bool
     weight: Decimal
+    points: Decimal
     source: str
     tags: Set[str]
 

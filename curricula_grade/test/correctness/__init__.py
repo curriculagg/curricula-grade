@@ -1,4 +1,4 @@
-from ...grader.task import Result
+from ...grader.task import Result, Error
 from ...grader.task.profile import TaskProfile
 
 

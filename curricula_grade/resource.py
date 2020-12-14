@@ -24,7 +24,7 @@ class Submission(Resource):
 class Context(Resource):
     """Extra context."""
 
-    options: Dict[str, Any]
+    options: Dict[str, Any] = field(default_factory=dict)
     task_names: Optional[Set[str]] = None
     task_tags: Optional[Set[str]] = None
 

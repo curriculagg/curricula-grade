@@ -36,22 +36,15 @@ def import_grader(grading_path: Path, problem: "GradingProblem", grader_name: st
     return grader
 
 
-class GradingProblemGrading(ProblemGrading):
-    """Override to add grader-specific computations."""
-
-    problem: "GradingProblem"
-
-    @property
-    def automated_point_ratio(self) -> Decimal:
-        return self.automated.points / self.problem.grader.test.weight
-
-
 class GradingProblem(Problem):
     """Additional details for grading."""
 
     path: Path = field(init=False)
     grader: Grader = field(init=False)
-    grading: GradingProblemGrading
+
+    @property
+    def automated_point_ratio(self) -> Decimal:
+        return self.grading.automated.points / self.grader.weight()
 
     @classmethod
     def read(cls, data: dict, path: Path) -> "GradingProblem":

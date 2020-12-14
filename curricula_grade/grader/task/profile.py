@@ -9,6 +9,7 @@ class TaskProfile:
 
     details: Optional[dict] = None
     graded: Optional[bool] = None
-    weight: Optional[Union[Decimal, int, float]] = None
+    weight: Optional[Union[Decimal, int, float, str]] = None
+    points: Optional[Union[Decimal, int, float, str]] = None
     tags: Optional[Set[str]] = None
     result_type: Type[Result]

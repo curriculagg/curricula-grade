@@ -1,4 +1,4 @@
-from ....library.valgrind import ValgrindReport, run
+from curricula.library.valgrind import ValgrindReport, run
 from ..correctness.common import ExecutableOutputMixin
 from . import MemoryResult
 

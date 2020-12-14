@@ -1,5 +1,3 @@
-from dataclasses import dataclass, field
-
 from curricula.log import log
 
 from .task import Result
@@ -19,22 +17,11 @@ if typing.TYPE_CHECKING:
 __all__ = ("Grader",)
 
 
-@dataclass(eq=False)
-class Grader:
+class Grader(TaskRegistrar):
     """A main class for grading runtime."""
 
-    tasks: TaskCollection
-
-    # Populated on import
-    problem: "GradingProblem" = field(init=False)
-
-    # Task registration
-    register: TaskRegistrar
-
-    def __post_init__(self):
-        """Set task registration."""
-
-        self.register = TaskRegistrar(tasks=self.tasks)
+    # Assigned on import
+    problem: "GradingProblem"
 
     def run(self, context: Context, submission: Submission) -> ProblemReport:
         """Build and test."""

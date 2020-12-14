@@ -1,4 +1,4 @@
-from ...grader.task import Result
+from ...grader.task import Result, Error
 from ...grader.task.profile import TaskProfile
 
 
@@ -11,6 +11,5 @@ class ComplexityResult(Result):
         super().__init__(complete=complete, passing=passing, error=error, details=details)
 
 
-class Code(TaskProfile):
+class Complexity(TaskProfile):
     result_type = ComplexityResult
-
