@@ -1,6 +1,6 @@
 import abc
 
-from ..task import Result
+from ..grader.task import Result
 from .code import CodeResult
 from .complexity import ComplexityResult
 from .correctness import CorrectnessResult

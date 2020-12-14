@@ -1,9 +1,10 @@
-import itertools
 from typing import Set, Iterable, Iterator
 
 from .collection import TaskCollection
 from .dependency import flatten_dependencies
 from ...resource import Context
+
+__all__ = ("filter_tasks",)
 
 
 def filter_problem_specific(prefix: str, collection: Iterable[str]) -> Set[str]:
@@ -50,9 +51,9 @@ def filter_tasks(context: Context, problem_short: str, tasks: TaskCollection) ->
 
     task_names = set()
     if context.task_tags is not None:
-        task_names += set(filter_tasks_by_tag(context.task_tags, problem_short, tasks))
+        task_names |= set(filter_tasks_by_tag(context.task_tags, problem_short, tasks))
     if context.task_names is not None:
-        task_names += set(filter_tasks_by_name(context.task_names, problem_short, tasks))
+        task_names |= set(filter_tasks_by_name(context.task_names, problem_short, tasks))
 
     # Add dependencies
     task_lookup = {task.name: task for task in tasks}

@@ -16,6 +16,8 @@ import typing
 if typing.TYPE_CHECKING:
     from ..models import GradingProblem
 
+__all__ = ("Grader",)
+
 
 @dataclass(eq=False)
 class Grader:
@@ -74,7 +76,7 @@ class Grader:
                 # Check if the result is the right type
                 if type(result) is not task.result_type:
                     raise GraderException(
-                        f"expected result type {task.result_type.kind} from {task.name} in {task.source}")
+                        f"expected result type {task.result_type} from {task.name} in {task.source}")
 
             result.task = task
             report.add(result)

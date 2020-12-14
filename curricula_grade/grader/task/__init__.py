@@ -1,17 +1,84 @@
 import abc
 import inspect
-from typing import Dict, TypeVar, Generic, Any, Type, Set
+from typing import Dict, TypeVar, Generic, Any, Type, Set, Optional, List, Union, Tuple, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 
 from curricula.log import log
 
-from .error import Error
-
-__all__ = ("Result", "Dependencies", "Task", "Runnable", "Error")
+__all__ = ("Message", "Score", "Result", "Dependencies", "Task", "Runnable", "Error")
 
 
-@dataclass(init=False, eq=False)
+@dataclass
+class Message:
+    """A message associated with a result."""
+
+    class Kind:
+        WARNING = "warning"
+        INFO = "info"
+        DEBUG = "debug"
+
+    kind: str
+    content: str
+
+    def dump(self) -> dict:
+        return dict(kind=self.kind, content=self.content)
+
+    @classmethod
+    def load(cls, data: dict) -> "Message":
+        return cls(kind=data["kind"], content=data["content"])
+
+
+DecimalArgument = Union[Decimal, float, str, Tuple[int, Sequence[int], int]]
+
+
+@dataclass(init=False)
+class Score:
+    """Result score."""
+
+    numerator: Decimal
+    denominator: Decimal
+
+    def __init__(self, numerator: DecimalArgument, denominator: DecimalArgument = 1):
+        self.numerator = Decimal(numerator)
+        self.denominator = Decimal(denominator)
+
+    def dump(self) -> dict:
+        return dict(numerator=str(self.numerator), denominator=str(self.denominator))
+
+    @classmethod
+    def load(cls, data: dict) -> "Score":
+        return cls(numerator=Decimal(data["numerator"]), denominator=Decimal(data["denominator"]))
+
+
+@dataclass
+class Error:
+    """An error raised during a task."""
+
+    description: str
+    suggestion: str = None
+    location: str = None
+    traceback: str = None
+    expected: Any = None
+    actual: Any = None
+
+    def dump(self, thin: bool = False) -> dict:
+        if thin:
+            return dict(description=self.description, suggestion=self.suggestion)
+        return dict(
+            description=self.description,
+            suggestion=self.suggestion,
+            location=self.location,
+            traceback=self.traceback,
+            expected=self.expected,
+            actual=self.actual)
+
+    @classmethod
+    def load(cls, data: dict) -> "Error":
+        return cls(**data)
+
+
+@dataclass(init=False)
 class Result(Exception, abc.ABC):
     """The result of a test."""
 
@@ -19,12 +86,19 @@ class Result(Exception, abc.ABC):
     passing: bool
     details: dict
     error: Error
+    messages: Optional[List[Message]]
+    score: Optional[Score]
+
     task: "Task" = field(init=False, repr=False)
 
-    # Associated with the type
-    kind: str = field(init=False, repr=False)
-
-    def __init__(self, complete: bool, passing: bool, error: Error = None, details: dict = None):
+    def __init__(
+            self,
+            complete: bool,
+            passing: bool,
+            score: Score = None,
+            error: Error = None,
+            messages: List[Message] = None,
+            details: dict = None):
         """Initialize a new result.
 
         Details are passed as a dictionary in order to avoid potential
@@ -33,8 +107,10 @@ class Result(Exception, abc.ABC):
 
         self.complete = complete
         self.passing = passing
+        self.score = score
         self.error = error
-        self.details = details or dict()
+        self.messages = messages if messages is not None else list()
+        self.details = details if details is not None else dict()
 
     def dump(self, thin: bool = False) -> dict:
         """Serialize the result for JSON."""
@@ -42,8 +118,9 @@ class Result(Exception, abc.ABC):
         dump = dict(
             complete=self.complete,
             passing=self.passing,
-            kind=self.kind,
-            error=self.error.dump(thin=thin) if self.error is not None else self.error,
+            score=self.score.dump() if self.score is not None else None,
+            error=self.error.dump(thin=thin) if self.error is not None else None,
+            messages=[message.dump() for message in self.messages],
             task=dict(
                 name=self.task.name,
                 description=self.task.description))
@@ -56,12 +133,11 @@ class Result(Exception, abc.ABC):
         """Load a result from serialized."""
 
         data.pop("task")
-        kind = data.pop("kind")
-        error_data = data.pop("error")
-        error = Error.load(error_data) if error_data is not None else None
-        self = cls(**data, error=error)
+        score = Score.load(score_data) if (score_data := data.pop("score", None)) is not None else None
+        error = Error.load(error_data) if (error_data := data.pop("error", None)) is not None else None
+        messages = list(map(Message.load, data.pop("messages")))
+        self = cls(**data, score=score, error=error, messages=messages)
         self.task = task
-        self.kind = kind
         return self
 
     @classmethod
@@ -87,7 +163,7 @@ class Runnable(Generic[TResult]):
         """The signature that will receive dependency injection."""
 
 
-@dataclass(eq=False)
+@dataclass
 class Dependencies:
     """Task dependencies based on passing or completion."""
 
@@ -118,9 +194,6 @@ class Dependencies:
         return cls(
             passing=cls.normalize_from_details("passing", details),
             complete=cls.normalize_from_details("complete", details))
-
-    def dump(self):
-        return dict(passing=list(self.passing), complete=list(self.complete))
 
 
 @dataclass(eq=False)

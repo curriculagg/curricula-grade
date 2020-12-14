@@ -33,7 +33,7 @@ class Context(Resource):
         """Parse a couple of the predefined options out of the dictionary."""
 
         self = cls(options)
-        if (tasks := options.pop("options", None)) is not None:
+        if (tasks := options.pop("tasks", None)) is not None:
             self.task_names = set(tasks)
         if (tags := options.pop("tags", None)) is not None:
             self.task_tags = set(tags)

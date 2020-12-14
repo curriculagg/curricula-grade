@@ -1,7 +1,7 @@
 from typing import Optional
 from pathlib import Path
 
-from ...task import Error
+from ..grader.task.error import Error
 from . import CheckResult
 
 __all__ = ("check_file_exists", "search_file_by_name")
