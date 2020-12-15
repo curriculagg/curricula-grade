@@ -2,7 +2,7 @@ import importlib.util
 from curricula_grade.shortcuts import *
 
 from curricula.models import ProblemGrading, ProblemGradingCategory
-from curricula_grade.models import GradingProblem, GradingAssignment
+from curricula_grade.models import GradingProblem
 
 grader = Grader()
 
@@ -35,21 +35,11 @@ def test_one_plus_one(module):
 if __name__ == '__main__':
     import json
     from pathlib import Path
-    from decimal import Decimal
 
     root = Path(__file__).absolute().parent
     context = Context()
     submission = Submission(problem_path=root, assignment_path=root)
-    grader.problem = GradingProblem(
-        short="test",
-        title="Test",
-        grading=ProblemGrading(
-            weight=Decimal(1),
-            points=Decimal(10),
-            automated=ProblemGradingCategory(
-                weight=Decimal(1),
-                points=Decimal(1))))
-
+    grader.problem = GradingProblem(short="test", title="Test")
     report = grader.run(context=context, submission=submission)
 
     print(json.dumps(report.dump(), indent=2))
