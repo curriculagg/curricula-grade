@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 
 from .task import Result
@@ -10,6 +10,12 @@ from curricula.models import serialize_datetime, deserialize_datetime
 
 if typing.TYPE_CHECKING:
     from ..models import GradingAssignment, GradingProblem
+
+
+def is_some(value: Any) -> bool:
+    """Shorthand for checking if identical to None."""
+
+    return value is not None
 
 
 @dataclass(eq=False)
@@ -31,11 +37,10 @@ class ProblemReportProblemReference:
         return ProblemReportProblemReference(**data)
 
 
-@dataclass(eq=False)
-class ProblemReport:
-    """The final report returned by the testing framework."""
+@dataclass
+class ProblemReportAutomated:
+    """Automated results."""
 
-    problem: ProblemReportProblemReference
     results: Dict[str, Result] = field(default_factory=dict)
     partial: bool = False
 
@@ -54,21 +59,9 @@ class ProblemReport:
 
         self.results[result.task.name] = result
 
-    def dump(self, thin: bool = False) -> dict:
-        """Dump the result to a serializable format."""
-
-        results = {result.task.name: result.dump(thin=thin) for result in self.results.values()}
-        return dict(problem=self.problem.dump(), partial=self.partial, results=results)
-
     @classmethod
-    def create(cls, problem: GradingProblem) -> "ProblemReport":
-        """Create a new problem."""
-
-        return ProblemReport(problem=ProblemReportProblemReference.create(problem))
-
-    @classmethod
-    def load(cls, data: dict, problem: GradingProblem) -> "ProblemReport":
-        """Deserialize, rebinding to provided tasks."""
+    def load(cls, data: dict, problem: GradingProblem) -> ProblemReportAutomated:
+        """Load an automated report."""
 
         partial = data["partial"]
         results = {}
@@ -78,11 +71,44 @@ class ProblemReport:
                 results[task.name] = task.result_type.load(result_data, task)
             else:
                 partial = True
+        return cls(partial=partial, results=results)
+
+    def dump(self, thin: bool = False) -> dict:
+        """Dump the result to a serializable format."""
+
+        results = {result.task.name: result.dump(thin=thin) for result in self.results.values()}
+        return dict(partial=self.partial, results=results)
+
+
+@dataclass(eq=False)
+class ProblemReport:
+    """The final report returned by the testing framework."""
+
+    problem: ProblemReportProblemReference
+    automated: ProblemReportAutomated
+
+    @classmethod
+    def create(cls, problem: GradingProblem) -> "ProblemReport":
+        """Create a new problem."""
+
+        return ProblemReport(
+            problem=ProblemReportProblemReference.create(problem),
+            automated=ProblemReportAutomated())
+
+    @classmethod
+    def load(cls, data: dict, problem: GradingProblem) -> "ProblemReport":
+        """Deserialize, rebinding to provided tasks."""
 
         return ProblemReport(
             problem=ProblemReportProblemReference.load(data["problem"]),
-            results=results,
-            partial=partial)
+            automated=ProblemReportAutomated.load(a, problem) if is_some(a := data["automated"]) else None)
+
+    def dump(self, thin: bool = False) -> dict:
+        """Serialize."""
+
+        return dict(
+            problem=self.problem.dump(),
+            automated=self.automated.dump(thin=thin))
 
 
 @dataclass(eq=False)
@@ -112,15 +138,6 @@ class AssignmentReport:
     assignment: AssignmentReportAssignmentReference
     problems: Dict[str, ProblemReport] = field(default_factory=dict)
     timestamp: datetime.datetime = field(default_factory=datetime.datetime.now)
-    partial: bool = False
-
-    def __post_init__(self):
-        """Check if any initialized problems are partial."""
-
-        for problem in self.problems.values():
-            if problem.partial:
-                self.partial = True
-                break
 
     def __contains__(self, item: str) -> bool:
         return item in self.problems
@@ -134,7 +151,6 @@ class AssignmentReport:
         """Set the result from a problem."""
 
         self.problems[key] = value
-        self.partial = self.partial or value.partial
 
     def dump(self, thin: bool = False) -> dict:
         """Serialize as dictionary to shorten rebuild."""
@@ -142,7 +158,6 @@ class AssignmentReport:
         return dict(
             assignment=self.assignment.dump(),
             timestamp=serialize_datetime(self.timestamp),
-            partial=self.partial,
             problems={short: report.dump(thin=thin) for short, report in self.problems.items()})
 
     @classmethod

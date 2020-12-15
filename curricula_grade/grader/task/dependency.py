@@ -45,8 +45,8 @@ def fulfills_dependencies(task: Task, report: ProblemReport):
     """Convenience."""
 
     return all((
-        all(report[dependency].passing for dependency in task.dependencies.passing),
-        all(report[dependency].complete for dependency in task.dependencies.complete)))
+        all(report.automated[dependency].passing for dependency in task.dependencies.passing),
+        all(report.automated[dependency].complete for dependency in task.dependencies.complete)))
 
 
 def flatten_dependencies(task_name: str, task_lookup: Dict[str, Task]) -> Iterator[str]:

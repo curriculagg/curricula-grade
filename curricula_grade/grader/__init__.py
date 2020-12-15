@@ -66,6 +66,6 @@ class Grader(TaskRegistrar):
                         f"expected result type {task.result_type} from {task.name} in {task.source}")
 
             result.task = task
-            report.add(result)
+            report.automated.add(result)
 
         return report

@@ -6,11 +6,11 @@ from typing import List
 from dataclasses import field
 from decimal import Decimal
 
-from curricula.models import Assignment, Problem, ProblemGrading
+from curricula.models import Assignment, Problem
 from curricula.structure import Files
 from .grader import Grader
 
-__all__ = ("import_grader", "GradingProblemGrading", "GradingProblem", "GradingAssignment")
+__all__ = ("import_grader", "GradingProblem", "GradingAssignment")
 
 
 def import_grader(grading_path: Path, problem: "GradingProblem", grader_name: str = "grader") -> Grader:
