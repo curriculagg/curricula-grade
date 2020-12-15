@@ -23,6 +23,11 @@ class Grader(TaskRegistrar):
     # Assigned on import
     problem: "GradingProblem"
 
+    def standalone(self, short: str, title: str):
+        """Use this to create a mock problem if running the grader standalone."""
+
+        self.problem = GradingProblem(short=short, title=title)
+
     def run(self, context: Context, submission: Submission) -> ProblemReport:
         """Build and test."""
 

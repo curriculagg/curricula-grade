@@ -1,9 +1,6 @@
 import importlib.util
 from curricula_grade.shortcuts import *
 
-from curricula.models import ProblemGrading, ProblemGradingCategory
-from curricula_grade.models import GradingProblem
-
 grader = Grader()
 
 
@@ -37,9 +34,7 @@ if __name__ == '__main__':
     from pathlib import Path
 
     root = Path(__file__).absolute().parent
-    context = Context()
-    submission = Submission(problem_path=root, assignment_path=root)
-    grader.problem = GradingProblem(short="test", title="Test")
-    report = grader.run(context=context, submission=submission)
+    grader.standalone(short="test", title="Test")
+    report = grader.run(context=Context(), submission=Submission(problem_path=root, assignment_path=root))
 
     print(json.dumps(report.dump(), indent=2))
