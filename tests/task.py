@@ -52,15 +52,28 @@ class RegistrarTests(unittest.TestCase):
         self.registrar.register(runnable=mock.runnable, details=dict(name="a"), result_type=mock.MockResult)
         self.assertIn("a", [task.name for task in self.registrar.tasks])
 
-    def test_sugared(self):
+    def test_brackets(self):
         self.registrar[mock.MockResult](mock.runnable, name="a")
         self.assertIn("a", [task.name for task in self.registrar.tasks])
 
-    def test_decorator(self):
+    def test_annotation(self):
+        self.registrar(mock.runnable, name="a")
+        self.assertIn("a", [task.name for task in self.registrar.tasks])
+
+    def test_decorator_brackets(self):
         @self.registrar[mock.MockResult](name="a")
         def a():
             return mock.MockResult()
         self.assertIn("a", [task.name for task in self.registrar.tasks])
+
+    def test_decorator_annotation(self):
+        @self.registrar(name="a")
+        def a() -> mock.MockResult:
+            return mock.MockResult()
+        self.assertIn("a", [task.name for task in self.registrar.tasks])
+
+    def test_no_type(self):
+        self.assertRaises(GraderException, lambda: self.registrar(lambda: mock.MockResult(), name="test"))
 
 
 class CollectionTests(unittest.TestCase):

@@ -46,11 +46,13 @@ class TaskRegistrar:
     def __call__(self, runnable: Any = None, /, **details):
         """Explicitly register a runnable."""
 
-        result_type = runnable.__annotations__["return"]
-        if not issubclass(result_type, Result):
-            raise GraderException("result type must be specified by return annotation or bracket notation")
+        if runnable is not None:
+            self.register(runnable=runnable, details=details, result_type=self._determine_result_type(runnable))
+            return
 
-        self.register(runnable=runnable, details=details, result_type=result_type)
+        def register(r: Runnable):
+            self.register(runnable=r, details=details, result_type=self._determine_result_type(r))
+        return register
 
     def __getitem__(self, result_type: Type[Result]):
         """Partial in the result_type."""
@@ -84,6 +86,15 @@ class TaskRegistrar:
         """Combined weight of all graded tasks."""
 
         return sum(map(lambda t: t.weight, filter(lambda t: t.graded, self.tasks)), Decimal(0))
+
+    @staticmethod
+    def _determine_result_type(runnable: Runnable) -> Type[Result]:
+        if is_some(annotations := getattr(runnable, "__annotations__", None)):
+            if is_some(result_type := annotations.get("return")):
+                if issubclass(result_type, Result):
+                    return result_type
+                raise GraderException("annotated result type does not inherit from Result")
+        raise GraderException("result type must be specified by return annotation or bracket notation")
 
     @staticmethod
     def _resolve_name(runnable: Runnable, details: dict) -> str:
