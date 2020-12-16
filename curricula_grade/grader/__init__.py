@@ -30,10 +30,11 @@ class Grader:
 
         self.register = TaskRegistrar()
 
-    def standalone(self, short: str, title: str):
-        """Use this to create a mock problem if running the grader standalone."""
+    @property
+    def tasks(self) -> TaskCollection:
+        """Mirror register tasks."""
 
-        self.problem = GradingProblem(short=short, title=title)
+        return self.register.tasks
 
     def run(self, context: Context, submission: Submission) -> ProblemReport:
         """Build and test."""
@@ -54,7 +55,7 @@ class Grader:
         report = ProblemReport.create(self.problem)
 
         # Execute
-        for task in self.register.tasks:
+        for task in self.tasks:
             log.debug(f"running task {task.name}")
 
             # Check conditions for whether this case is filtered out, if so report is partial

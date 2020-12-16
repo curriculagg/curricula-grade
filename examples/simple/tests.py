@@ -32,9 +32,10 @@ def test_one_plus_one(module) -> CorrectnessResult:
 if __name__ == '__main__':
     import json
     from pathlib import Path
+    from curricula_grade.models import GradingProblem
 
     root = Path(__file__).absolute().parent
-    grader.standalone(short="test", title="Test")
+    grader.problem = GradingProblem(short="test", title="Test")
     report = grader.run(context=Context(), submission=Submission(problem_path=root, assignment_path=root))
 
     print(json.dumps(report.dump(), indent=2))

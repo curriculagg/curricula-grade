@@ -181,5 +181,4 @@ class AssignmentReport:
         return AssignmentReport(
             assignment=assignment_reference,
             problems=problems,
-            timestamp=timestamp,
-            partial=data["partial"])
+            timestamp=timestamp)
