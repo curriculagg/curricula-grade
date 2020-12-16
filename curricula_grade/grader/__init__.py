@@ -17,11 +17,18 @@ if typing.TYPE_CHECKING:
 __all__ = ("Grader",)
 
 
-class Grader(TaskRegistrar):
+class Grader:
     """A main class for grading runtime."""
+
+    register: TaskRegistrar
 
     # Assigned on import
     problem: "GradingProblem"
+
+    def __init__(self):
+        """Create the registrar."""
+
+        self.register = TaskRegistrar()
 
     def standalone(self, short: str, title: str):
         """Use this to create a mock problem if running the grader standalone."""
@@ -38,13 +45,16 @@ class Grader(TaskRegistrar):
         resources.update(resources=resources)
 
         # Create the filter
-        filtered_task_names = filter_tasks(context=context, problem_short=self.problem.short, tasks=self.tasks)
+        filtered_task_names = filter_tasks(
+            context=context,
+            problem_short=self.problem.short,
+            tasks=self.register.tasks)
 
         # Report
         report = ProblemReport.create(self.problem)
 
         # Execute
-        for task in self.tasks:
+        for task in self.register.tasks:
             log.debug(f"running task {task.name}")
 
             # Check conditions for whether this case is filtered out, if so report is partial

@@ -3,7 +3,6 @@ from typing import Optional
 from curricula.library.valgrind import ValgrindReport
 
 from ...grader.task import Result, Error
-from ...grader.task.profile import TaskProfile
 
 
 class MemoryResult(Result):
@@ -62,7 +61,3 @@ class MemoryResult(Result):
             leaked_blocks=self.leaked_blocks,
             leaked_bytes=self.leaked_bytes)
         return dump
-
-
-class Memory(TaskProfile):
-    result_type = MemoryResult

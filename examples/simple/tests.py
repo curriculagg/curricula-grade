@@ -4,8 +4,8 @@ from curricula_grade.shortcuts import *
 grader = Grader()
 
 
-@grader[Setup](tags={"sanity"})
-def import_submission(submission: Submission, resources: dict):
+@grader.register(tags={"sanity"})
+def import_submission(submission: Submission, resources: dict) -> SetupResult:
     """Add the submission to resources."""
 
     submission_path = submission.problem_path.joinpath("submission.py")
@@ -21,8 +21,8 @@ def import_submission(submission: Submission, resources: dict):
     return SetupResult(passing=True)
 
 
-@grader[Correctness](tags={"sanity"}, passing={"import_submission"})
-def test_one_plus_one(module):
+@grader.register(tags={"sanity"}, passing={"import_submission"})
+def test_one_plus_one(module) -> CorrectnessResult:
     """Check if 1 + 1 = 2."""
 
     return CorrectnessResult(passing=module.add(1, 1) == 2)

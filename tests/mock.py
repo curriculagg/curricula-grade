@@ -1,5 +1,4 @@
 from curricula_grade.grader.task import Task, Dependencies, Result, Error
-from curricula_grade.grader.task.profile import TaskProfile
 
 
 class MockResult(Result):
@@ -7,10 +6,6 @@ class MockResult(Result):
 
     def __init__(self, complete: bool = True, passing: bool = True, error: Error = None, details: dict = None):
         super().__init__(complete=complete, passing=passing, error=error, details=details)
-
-
-class Mock(TaskProfile):
-    result_type = MockResult
 
 
 def runnable() -> MockResult:
@@ -26,7 +21,8 @@ def task(name: str, **details):
         runnable=runnable(),
         details=dict(),
         graded=True,
-        weight=1,
+        points=None,
+        weight=None,
         source="testing",
         tags=set(),
         result_type=Result)

@@ -5,7 +5,6 @@ from decimal import Decimal
 from curricula.library.debug import get_source_location
 
 from . import Runnable, Task, Result, Dependencies
-from .profile import TaskProfile
 from .collection import TaskCollection
 from ...exception import GraderException
 
@@ -44,48 +43,37 @@ class TaskRegistrar:
 
         self.tasks = TaskCollection()
 
-    def register(self, runnable: Any, details: dict, result_type: Type[Result] = Result):
+    def __call__(self, runnable: Any = None, /, **details):
         """Explicitly register a runnable."""
 
-        self._register_with_result_type(runnable=runnable, details=details, result_type=result_type)
+        result_type = runnable.__annotations__["return"]
+        if not issubclass(result_type, Result):
+            raise GraderException("result type must be specified by return annotation or bracket notation")
 
-    def __getitem__(self, profile: Type[TaskProfile]):
+        self.register(runnable=runnable, details=details, result_type=result_type)
+
+    def __getitem__(self, result_type: Type[Result]):
         """Partial in the result_type."""
 
-        def register(runnable: Runnable = None, /, **details: dict):
+        def register(runnable: Runnable = None, /, **details):
             """Return potentially a decorator or maybe not."""
 
             if runnable is not None:
-                self._register_with_profile(runnable=runnable, details=details, profile=profile)
+                self.register(runnable=runnable, details=details, result_type=result_type)
                 return
 
-            return functools.partial(self._register_with_profile, details=details, profile=profile)
+            return functools.partial(self.register, details=details, result_type=result_type)
 
         return register
 
-    def _register_with_profile(self, runnable: Any, details: dict, profile: Type[TaskProfile]):
-        tags = TaskRegistrar._resolve_tags(details)
-        self.tasks.push(Task(
-            name=TaskRegistrar._resolve_name(runnable, details),
-            description=TaskRegistrar._resolve_description(runnable, details),
-            dependencies=Dependencies.from_details(details),
-            runnable=runnable,
-            graded=first_some(details.pop("graded", None), profile.graded, True),
-            weight=Decimal(first_some(details.pop("weight", None), profile.weight, 1)),
-            points=Decimal(p) if is_some(p := first_some(details.pop("points", None), profile.points)) else None,
-            source=get_source_location(1),
-            tags=tags.union(profile.tags) if profile.tags is not None else tags,
-            result_type=profile.result_type,
-            details=underwrite(profile.details, details) if profile.details is not None else details,))
-
-    def _register_with_result_type(self, runnable: Any, details: dict, result_type: Type[Result]):
+    def register(self, runnable: Any, details: dict, result_type: Type[Result]):
         self.tasks.push(Task(
             name=TaskRegistrar._resolve_name(runnable, details),
             description=TaskRegistrar._resolve_description(runnable, details),
             dependencies=Dependencies.from_details(details),
             runnable=runnable,
             graded=details.pop("graded", True),
-            weight=Decimal(details.pop("weight", 1)),
+            weight=Decimal(w) if is_some(w := details.pop("weight", None)) else None,
             points=Decimal(p) if is_some(p := details.pop("points", None)) else None,
             source=get_source_location(1),
             tags=TaskRegistrar._resolve_tags(details),

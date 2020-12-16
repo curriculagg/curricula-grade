@@ -73,7 +73,7 @@ class Result(Exception, abc.ABC):
             self,
             complete: bool,
             passing: bool,
-            score: Decimal = None,
+            score: Union[Decimal, int, float, str] = None,
             error: Error = None,
             messages: List[Message] = None,
             details: dict = None):
@@ -186,8 +186,9 @@ class Task:
     details: dict
 
     graded: bool
-    weight: Decimal
-    points: Decimal
+    weight: Optional[Decimal]
+    points: Optional[Decimal]
+
     source: str
     tags: Set[str]
 

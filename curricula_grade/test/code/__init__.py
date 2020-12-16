@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ...grader.task import Result
-from ...grader.task.profile import TaskProfile
 
 
 @dataclass
@@ -33,7 +32,3 @@ class CodeResult(Result):
         super().__init__(complete=complete, passing=passing, details=details)
         self.description = description
         self.location = location
-
-
-class Code(TaskProfile):
-    result_type = CodeResult

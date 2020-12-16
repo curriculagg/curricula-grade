@@ -46,18 +46,18 @@ class RegistrarTests(unittest.TestCase):
     """Check registration methods."""
 
     def setUp(self):
-        self.registrar = TaskRegistrar(TaskCollection())
+        self.registrar = TaskRegistrar()
 
     def test_register_manual(self):
-        self.registrar(runnable=mock.runnable, details=dict(name="a"), result_type=mock.MockResult)
+        self.registrar.register(runnable=mock.runnable, details=dict(name="a"), result_type=mock.MockResult)
         self.assertIn("a", [task.name for task in self.registrar.tasks])
 
     def test_sugared(self):
-        self.registrar[mock.Mock](mock.runnable, name="a")
+        self.registrar[mock.MockResult](mock.runnable, name="a")
         self.assertIn("a", [task.name for task in self.registrar.tasks])
 
     def test_decorator(self):
-        @self.registrar[mock.Mock](name="a")
+        @self.registrar[mock.MockResult](name="a")
         def a():
             return mock.MockResult()
         self.assertIn("a", [task.name for task in self.registrar.tasks])
@@ -145,10 +145,6 @@ class SerializationTests(unittest.TestCase):
         message = Message(kind=Message.Kind.DEBUG, content="test")
         self.assertEqual(message, Message.load(message.dump()))
 
-    def test_score(self):
-        score = Score(numerator=2, denominator=3)
-        self.assertEqual(score, Score.load(score.dump()))
-
     def test_error(self):
         error = Error(
             description="Hello, world!",
@@ -168,7 +164,7 @@ class SerializationTests(unittest.TestCase):
         result = Result(
             complete=True,
             passing=False,
-            score=Score(1),
+            score=1,
             error=Error(description="Test failed!"),
             messages=[Message(kind=Message.Kind.DEBUG, content="test")],
             details={"key": "value"})
