@@ -189,4 +189,3 @@ class SerializationTests(unittest.TestCase):
         result = Result(complete=True, passing=False)
         result.task = task
         self.assertEqual(result, Result.load(result.dump(), task))
-
