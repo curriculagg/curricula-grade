@@ -21,7 +21,6 @@ def import_grader(grading_path: Path, problem: "GradingProblem", grader_name: st
         name = f"_curricula_grading_{grading_path.parts[-1]}"
         spec = importlib.util.spec_from_file_location(name, str(grading_path.joinpath("__init__.py")))
         module = importlib.util.module_from_spec(spec)
-        sys.modules[name] = module
 
     # Otherwise there's a tests.py
     else:
