@@ -3,10 +3,10 @@ from pathlib import Path
 
 from curricula.library.printer import Printer
 from ..models import GradingAssignment
-from ..report import AssignmentReport
+from ..grader.report import AssignmentReport
 
 
-def get_diagnostics(assignment: GradingAssignment, assignment_report_path: Path) -> str:
+def diagnose(assignment: GradingAssignment, assignment_report_path: Path) -> str:
     """Check if tests passed, displaying errors."""
 
     # Load the assignment

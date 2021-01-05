@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..models import GradingAssignment
-from ..report import AssignmentReport
-from ..task import Task
+from ..grader.report import AssignmentReport
+from ..grader.task import Task
 
 
 @dataclass

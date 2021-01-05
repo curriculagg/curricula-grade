@@ -47,7 +47,7 @@ def amend_report(
 
 
 def path_from_options(
-        options: argparse.Namespace,
+        options: dict,
         default_file_name: str,
         *,
         batch: bool,
@@ -75,8 +75,7 @@ class GradeRunPlugin(Plugin):
     name = "run"
     help = "run submissions against a grading artifact"
 
-    @classmethod
-    def setup(cls, parser: argparse.ArgumentParser):
+    def setup(self, parser: argparse.ArgumentParser):
         """Command line."""
 
         parser.add_argument("--grading", "-g", required=True, help="the grading artifact")
@@ -93,24 +92,23 @@ class GradeRunPlugin(Plugin):
         to_group = parser.add_mutually_exclusive_group(required=True)
         to_group.add_argument("-f", "--file", dest="file", help="output file for single report")
         to_group.add_argument("-d", "--directory", dest="directory", help="where to write reports to if batched")
-        parser.add_argument("targets", nargs="+", help="run tests on a single target")
+        parser.add_argument("submissions", nargs="+", help="run tests on a single target")
 
-    @classmethod
-    def main(cls, parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> int:
+    def main(self, parser: argparse.ArgumentParser, arguments: dict) -> int:
         """Run the grader."""
 
         grading_path: Path = Path(arguments["grading"]).absolute()
         if not grading_path.is_dir():
-            raise PluginException("Grading artifact does not exist!")
+            raise PluginException("grading artifact does not exist!")
 
-        if len(arguments["targets"]) == 1:
-            assigment_path = Path(arguments["targets"][0]).absolute()
-            return cls.run_single(grading_path, assigment_path, arguments)
+        if len(arguments["submissions"]) == 1:
+            submission_path = Path(arguments["submissions"][0]).absolute()
+            return self.run_single(grading_path, submission_path, arguments)
         else:
-            return cls.run_batch(grading_path, map(Path, arguments.get("targets")), arguments)
+            return self.run_batch(grading_path, map(Path, arguments.get("submissions")), arguments)
 
     @classmethod
-    def run_single(cls, grading_path: Path, assignment_path: Path, options: argparse.Namespace) -> int:
+    def run_single(cls, grading_path: Path, assignment_path: Path, options: dict) -> int:
         """Grade a single file, write to file output."""
 
         log.debug(f"running single target {assignment_path}")
@@ -127,10 +125,10 @@ class GradeRunPlugin(Plugin):
         return 0
 
     @classmethod
-    def run_batch(cls, grading_path: Path, target_paths: Iterable[Path], options: argparse.Namespace) -> int:
+    def run_batch(cls, grading_path: Path, target_paths: Iterable[Path], options: dict) -> int:
         """Run a batch of reports."""
 
-        log.debug("running batch targets")
+        log.debug("running batch submissions")
 
         assignment = GradingAssignment.read(grading_path)
 
@@ -179,44 +177,62 @@ class GradeRunPlugin(Plugin):
         return 0
 
 
+class GradeSummarizePlugin(Plugin):
+    """Summarize the results of a set of reports."""
+
+    name = "summarize"
+    help = "summarize the results of a set of reports"
+
+    def setup(self, parser: argparse.ArgumentParser):
+        """No options."""
+
+        parser.add_argument("reports", nargs="+", help="the reports to summarize")
+
+    def main(self, parser: argparse.ArgumentParser, arguments: dict):
+        """Summarize a batch of reports."""
+
+        grading_path: Path = Path(arguments["grading"]).absolute()
+        if not grading_path.is_dir():
+            raise PluginException("grading artifact does not exist!")
+
+        from .tools.summarize import summarize
+        summarize(grading_path, arguments["reports"])
+
+
+class GradeDiagnosePlugin(Plugin):
+    """Get formatted diagnostics on a single report."""
+
+    name = "diagnose"
+    help = "get formatted diagnostics on a single report"
+
+    def setup(self, parser: argparse.ArgumentParser):
+        """No arguments."""
+
+        parser.add_argument("report", help="report to print diagnostics on")
+
+    def main(self, parser: argparse.ArgumentParser, arguments: dict):
+        """Get diagnostics on a report."""
+
+        grading_path: Path = Path(arguments["grading"]).absolute()
+        if not grading_path.is_dir():
+            raise PluginException("grading artifact does not exist!")
+
+        assignment = GradingAssignment.read(grading_path)
+        report_path = Path(arguments["report"])
+
+        from curricula_grade.tools.diagnostics import get_diagnostics
+        print(get_diagnostics(assignment, report_path), end="")
+
+
 class GradePlugin(PluginDispatcher):
     """Implement grade plugin."""
 
     name = "grade"
     help = "manage assignment grading for submissions"
-    plugins = (GradeRunPlugin,)
-
-    @classmethod
-    def _setup(cls, parser: argparse.ArgumentParser):
-        """Setup argument parser for grade command."""
-
-        subparsers = parser.add_subparsers(required=True, dest="command")
-
-        summarize_parser = subparsers.add_parser("summarize")
-        summarize_parser.add_argument("reports", help="the directory containing the grade reports")
-
-        compare_parser = subparsers.add_parser("compare")
-        to_group = compare_parser.add_mutually_exclusive_group(required=True)
-        to_group.add_argument("-f", "--file", dest="file", help="output file for single report")
-        to_group.add_argument("-d", "--directory", dest="directory", help="where to write reports to if batched")
-        compare_parser.add_argument("-t", "--template", help="the template folder to pull from", required=True)
-        compare_parser.add_argument("report", help="the report to compare")
-
-        diagnostics_parser = subparsers.add_parser("diagnostics")
-        diagnostics_parser.add_argument("report", help="report to print diagnostics on")
-
-        describe_parser = subparsers.add_parser("describe")
-        describe_parser.add_argument("--tags", nargs="+", help="only describe tasks with the specified tags")
-        describe_parser.add_argument("--tasks", nargs="+", help="only describe the specified tasks")
-
-    @classmethod
-    def summarize(cls, grading_path: Path, options: dict):
-        """Summarize a batch of reports."""
-
-        from curricula.grade.tools.summarize import summarize
-
-        reports_path = Path(options.get("reports"))
-        summarize(grading_path, tuple(reports_path.glob("*.json")))
+    plugins = (
+        GradeRunPlugin(),
+        GradeSummarizePlugin(),
+        GradeDiagnosePlugin())
 
     @classmethod
     def compare(cls, grading_path: Path, options: dict):
@@ -228,17 +244,3 @@ class GradePlugin(PluginDispatcher):
         template_path = Path(options.get("template"))
         with path_from_options(options, change_extension(report_path, "compare.html"), batch=False).open("w") as file:
             file.write(compare_output(template_path, report_path))
-
-    @classmethod
-    def diagnostics(cls, grading_path: Path, options: dict):
-        """Get diagnostics on a report."""
-
-        assignment = GradingAssignment.read(grading_path)
-        cls.diagnostics_single(assignment, Path(options.get("report")))
-
-    @classmethod
-    def diagnostics_single(cls, assignment: GradingAssignment, report_path: Path):
-        """Run diagnostics on a single report."""
-
-        from curricula_grade.tools.diagnostics import get_diagnostics
-        print(get_diagnostics(assignment, report_path), end="")
