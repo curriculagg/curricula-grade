@@ -1,14 +1,10 @@
 import abc
-from typing import Any, Union, Optional
+from typing import Any, Optional, Type
 
 from ..grader.task import Result
-from .code import CodeResult
-from .complexity import ComplexityResult
-from .correctness import CorrectnessResult
-from .memory import MemoryResult
 
 
-class Executor(abc.ABC):
+class Executor(metaclass=abc.ABCMeta):
     """Runs the content of the test."""
 
     resources: dict
@@ -19,7 +15,7 @@ class Executor(abc.ABC):
         """Does something and produces output."""
 
 
-class Connector(abc.ABC):
+class Connector(metaclass=abc.ABCMeta):
     """Converts the result of the executor."""
 
     resources: dict
@@ -30,7 +26,7 @@ class Connector(abc.ABC):
         """Transforms output for evaluation."""
 
 
-class Evaluator(abc.ABC):
+class Evaluator(metaclass=abc.ABCMeta):
     """Evaluates the content of a test."""
 
     resources: dict
@@ -41,28 +37,35 @@ class Evaluator(abc.ABC):
         """Evaluate and return a result."""
 
 
-class Test(Executor, Connector, Evaluator, abc.ABC):
+class Test(metaclass=abc.ABCMeta):
     """Convenience class for building dynamic test objects."""
 
-    _resources: Optional[dict]
-    _details: Optional[dict]
+    resources: Optional[dict]
+    details: Optional[dict]
 
     @property
-    def resources(self) -> dict:
-        return self._resources
+    @abc.abstractmethod
+    def result_type(self) -> Type[Result]:
+        """Class-based tests must indicate a result type."""
 
-    @property
-    def details(self) -> dict:
-        return self._details
+    @abc.abstractmethod
+    def execute(self) -> Any:
+        """Does something and produces output."""
 
     def connect(self, result: Any) -> Any:
+        """Transforms output for evaluation."""
+
         return result
+
+    @abc.abstractmethod
+    def evaluate(self, result: Any) -> Result:
+        """Evaluate and return a result."""
 
     def __call__(self, resources: dict) -> Result:
         """Should behave like a standard runnable."""
 
-        self._resources = resources
-        self._details = dict()
+        self.resources = resources
+        self.details = dict()
         result = self.evaluate(self.connect(self.execute()))
-        result.details.update(self._details)
+        result.details.update(self.details)
         return result

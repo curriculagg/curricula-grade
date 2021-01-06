@@ -1,17 +1,17 @@
-from typing import AnyStr, List, Sized, Union, Iterable, Collection, Optional, Callable, Type, TypeVar, Any, Sequence
+from typing import AnyStr, List, Sized, Union, Iterable, Collection, Optional, Callable, TypeVar, Any, Sequence
 from pathlib import Path
 
 from curricula.library.process import Runtime, Interactive, TimeoutExpired, Interaction
 from curricula.library.configurable import none, Configurable
-from . import CorrectnessResult
+from . import CorrectnessResult, CorrectnessTest
 from .. import Executor, Evaluator, Connector
-from ...grader.task import Error, Result
+from ...grader.task import Error
+from ...common import verify_runtime
 
 __all__ = (
     "as_lines",
     "lines_match",
     "lines_match_unordered",
-    "test_runtime_succeeded",
     "ProcessExecutor",
     "ProcessInputFileMixin",
     "CompareBytesEvaluator",
@@ -19,6 +19,8 @@ __all__ = (
     "ProcessExitCodeConnector",
     "ProcessStreamConnector",
     "OutputFileConnector",
+    "ProcessCompareStreamTest",
+    "ProcessCompareExitCodeTest",
     "write_then_read")
 
 
@@ -230,38 +232,17 @@ class CompareExitCodeEvaluator(Evaluator, Configurable):
                 suggestion=f"""expected exit code {", ".join(map(str, self._expected_codes))}"""))
 
 
-TResult = TypeVar("TResult", bound=Type[Result])
-
-
-def test_runtime_succeeded(runtime: Runtime, result_type: TResult = CorrectnessResult) -> Optional[TResult]:
-    """See if the runtime raised exceptions or returned status code."""
-
-    if runtime.raised_exception:
-        error = Error(description=runtime.exception.description)
-        return result_type(passing=False, runtime=runtime.dump(), error=error)
-    if runtime.timed_out:
-        error = Error(
-            description="timed out",
-            suggestion=f"exceeded maximum elapsed time of {runtime.timeout} seconds")
-        return result_type(passing=False, runtime=runtime.dump(), error=error)
-    if runtime.code != 0:
-        error = Error(
-            description=f"received status code {runtime.code}",
-            suggestion="expected status code of zero")
-        return result_type(passing=False, runtime=runtime.dump(), error=error)
-    return None
-
-
 class ProcessExitCodeConnector(Connector):
     """Output is exit code instead of stdout."""
 
     def connect(self, runtime: Runtime) -> int:
         """Return exit code."""
 
+        self.details.update(runtime=runtime.dump())
         return runtime.code
 
 
-class ProcessStreamConnector(Connector, Configurable):
+class ProcessStreamConnector(Configurable, Connector):
     """Output is stdout or stderr."""
 
     STDOUT = "stdout"
@@ -272,6 +253,9 @@ class ProcessStreamConnector(Connector, Configurable):
     def connect(self, runtime: Runtime) -> bytes:
         """Return exit code."""
 
+        verify_runtime(runtime, CorrectnessResult)
+        self.details.update(runtime=runtime.dump())
+
         stream = self.resolve("stream", default=self.STDOUT)
         if stream == self.STDOUT:
             return runtime.stdout
@@ -280,7 +264,7 @@ class ProcessStreamConnector(Connector, Configurable):
         raise ValueError(f"invalid stream type specified in connector: {stream}")
 
 
-class OutputFileConnector(Connector, Configurable):
+class OutputFileConnector(Configurable, Connector):
     """Enables the use of an input file rather than stdin string."""
 
     output_file_path: Path
@@ -300,6 +284,14 @@ class OutputFileConnector(Connector, Configurable):
                 description="no output file",
                 suggestion=f"expected path {output_file_path}"))
         return output_file_path.read_bytes()
+
+
+class ProcessCompareStreamTest(ProcessExecutor, ProcessStreamConnector, CompareBytesEvaluator, CorrectnessTest):
+    """Standard process output test."""
+
+
+class ProcessCompareExitCodeTest(ProcessExecutor, ProcessExitCodeConnector, CompareExitCodeEvaluator, CorrectnessTest):
+    """Make sure the process exits as expected."""
 
 
 def write_then_read(

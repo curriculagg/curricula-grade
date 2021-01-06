@@ -89,12 +89,16 @@ class TaskRegistrar:
 
     @staticmethod
     def _determine_result_type(runnable: Runnable) -> Type[Result]:
+        result_type_candidate = None
         if is_some(annotations := getattr(runnable, "__annotations__", None)):
-            if is_some(result_type := annotations.get("return")):
-                if issubclass(result_type, Result):
-                    return result_type
-                raise GraderException("annotated result type does not inherit from Result")
-        raise GraderException("result type must be specified by return annotation or bracket notation")
+            result_type_candidate = annotations.get("return")
+        if result_type_candidate is None:
+            result_type_candidate = getattr(runnable, "result_type", None)
+        if result_type_candidate is None:
+            raise GraderException("result type must be specified by return annotation or bracket notation")
+        if not issubclass(result_type_candidate, Result):
+            raise GraderException("annotated result type does not inherit from Result")
+        return result_type_candidate
 
     @staticmethod
     def _resolve_name(runnable: Runnable, details: dict) -> str:
