@@ -1,28 +1,24 @@
-import abc
-
-from typing import *
+from typing import AnyStr, List, Sized, Union, Iterable, Collection, Optional, Callable, Type, TypeVar, Any, Sequence
 from pathlib import Path
 
+from curricula.library.process import Runtime, Interactive, TimeoutExpired, Interaction
+from curricula.library.configurable import none, Configurable
 from . import CorrectnessResult
-from .. import Test
-from ...task import Error
-from ....library.process import Runtime, Interactive, TimeoutExpired, Interaction
-from ....library.configurable import none, Configurable
+from .. import Executor, Evaluator, Connector
+from ...grader.task import Error, Result
 
 __all__ = (
     "as_lines",
     "lines_match",
     "lines_match_unordered",
     "test_runtime_succeeded",
-    "OutputTest",
-    "CompareTest",
-    "CompareBytesOutputTest",
-    "ExecutableOutputMixin",
-    "ExecutableExitCodeMixin",
-    "ExecutableInputFileMixin",
-    "ExecutableOutputFileMixin",
-    "CompareExitCodeOutputTest",
-    "GoogleTest",
+    "ProcessExecutor",
+    "ProcessInputFileMixin",
+    "CompareBytesEvaluator",
+    "CompareExitCodeEvaluator",
+    "ProcessExitCodeConnector",
+    "ProcessStreamConnector",
+    "OutputFileConnector",
     "write_then_read")
 
 
@@ -59,37 +55,60 @@ def lines_match_unordered(a: AnyStrSequence, b: AnyStrSequence) -> bool:
     return lines_match(sorted(a), sorted(b))
 
 
-CompareTest = Callable[[Any], CorrectnessResult]
+class ProcessExecutor(Configurable, Executor):
+    """Meant for reading and comparing stdout."""
+
+    executable_name: str
+    args: Iterable[str]
+    stdin: Optional[bytes]
+    timeout: Optional[float]
+    cwd: Optional[Path]
+    stream: str
+
+    def __init__(
+            self,
+            *,
+            executable_name: str = none,
+            args: Iterable[str] = none,
+            stdin: bytes = none,
+            timeout: float = none,
+            cwd: Path = none,
+            stream: str = none,
+            **kwargs):
+        """Save container information, call super."""
+
+        super().__init__(**kwargs)
+
+        self.executable_name = executable_name
+        self.args = args
+        self.stdin = stdin
+        self.timeout = timeout
+        self.cwd = cwd
+        self.stream = stream
+
+    def execute(self) -> Runtime:
+        """Check that it ran correctly, then run the test."""
+
+        executable = self.resources[self.executable_name]
+        runtime = executable.execute(
+            *self.resolve("args", default=()),
+            stdin=self.resolve("stdin", default=None),
+            timeout=self.resolve("timeout", default=None),
+            cwd=self.resolve("cwd", default=None))
+        self.details["runtime"] = runtime.dump()
+        return runtime
 
 
-class OutputTest(Test, abc.ABC):
-    """Compares program output to an expected output."""
+class ProcessInputFileMixin(Configurable):
+    """Enables the use of an input file rather than stdin string."""
 
-    test: CompareTest
-    resources: Optional[dict]
-    details: Optional[dict]
+    input_file_path: Path
 
-    def __init__(self, **kwargs):
-        """Create shared fields."""
+    def __init__(self, *, input_file_path: Path = none, **kwargs):
+        """Set stdin to the contents of the file."""
 
-        if len(kwargs) > 0:
-            raise SyntaxError(f"base class received kwargs {kwargs.keys()}")
-
-    def get_output(self) -> Any:
-        """Override this."""
-
-        pass
-
-    def __call__(self, resources: dict) -> CorrectnessResult:
-        """Check if the output matches."""
-
-        self.resources = resources
-        self.details = {}
-        result = self.test(self.get_output())
-        result.details.update(self.details)
-        self.resources = None
-        self.details = None
-        return result
+        super().__init__(**kwargs)
+        self.input_file_path = input_file_path
 
 
 BytesTransform = Callable[[bytes], bytes]
@@ -100,7 +119,7 @@ def identity(x: T) -> T:
     return x
 
 
-class CompareBytesOutputTest(OutputTest, Configurable):
+class CompareBytesEvaluator(Configurable, Evaluator):
     """Compares output to expected values."""
 
     out_transform: BytesTransform
@@ -126,6 +145,7 @@ class CompareBytesOutputTest(OutputTest, Configurable):
         """
 
         super().__init__(**kwargs)
+
         self.test_out = self.resolve("test_out", local=test_out, default=None)
         self.test_out_lines = self.resolve("test_out_lines", local=test_out_lines, default=None)
         self.test_out_lines_lists = self.resolve("test_out_lines_lists", local=test_out_lines_lists, default=None)
@@ -138,7 +158,7 @@ class CompareBytesOutputTest(OutputTest, Configurable):
         self.out_transform = self.resolve("out_transform", local=out_transform, default=identity)
         self.out_line_transform = self.resolve("out_line_transform", local=out_line_transform, default=identity)
 
-    def test(self, out: bytes):
+    def evaluate(self, out: bytes) -> CorrectnessResult:
         """Call the corresponding test."""
 
         if self.test_out is not None:
@@ -155,7 +175,7 @@ class CompareBytesOutputTest(OutputTest, Configurable):
         error = None if passing else Error(
             description="unexpected output",
             expected=test_out.decode(errors="replace"),
-            received=out.decode(errors="replace"))
+            actual=out.decode(errors="replace"))
         return CorrectnessResult(passing=passing, error=error)
 
     def _test_out_lines_lists(self, out: bytes) -> CorrectnessResult:
@@ -172,106 +192,95 @@ class CompareBytesOutputTest(OutputTest, Configurable):
         error = None if passing else Error(
             description="unexpected output",
             expected=expected[0] if len(expected) == 1 else expected,
-            received=b"\n".join(out_lines).decode(errors="replace"))
+            actual=b"\n".join(out_lines).decode(errors="replace"))
         return CorrectnessResult(passing=passing, error=error)
 
 
-def test_runtime_succeeded(runtime: Runtime) -> CorrectnessResult:
+class CompareExitCodeEvaluator(Evaluator, Configurable):
+    """Checks program exit code."""
+
+    expected_code: int
+    expected_codes: Collection[int]
+
+    _expected_codes: Collection[int]
+
+    def __init__(self, *, expected_code: int = none, expected_codes: Collection[int] = none, **kwargs):
+        """Set expected codes."""
+
+        super().__init__(**kwargs)
+
+        expected_code = self.resolve("expected_code", local=expected_code, default=None)
+        expected_codes = self.resolve("expected_codes", local=expected_codes, default=None)
+        if expected_code is None and expected_codes is None:
+            raise ValueError("Runtime exit test requires either expected status or statuses!")
+        if expected_code is not None and expected_codes is not None:
+            raise ValueError("Runtime exit test requires either expected status or statuses!")
+
+        self._expected_codes = (expected_code,) if expected_code is not None else expected_codes
+
+    def evaluate(self, code: int) -> CorrectnessResult:
+        """Check if the exit code is one of the options."""
+
+        if code in self._expected_codes:
+            return CorrectnessResult(passing=True)
+        return CorrectnessResult(
+            passing=False,
+            error=Error(
+                description=f"received incorrect exit code {code}",
+                suggestion=f"""expected exit code {", ".join(map(str, self._expected_codes))}"""))
+
+
+TResult = TypeVar("TResult", bound=Type[Result])
+
+
+def test_runtime_succeeded(runtime: Runtime, result_type: TResult = CorrectnessResult) -> Optional[TResult]:
     """See if the runtime raised exceptions or returned status code."""
 
     if runtime.raised_exception:
         error = Error(description=runtime.exception.description)
-        raise CorrectnessResult(passing=False, runtime=runtime.dump(), error=error)
+        return result_type(passing=False, runtime=runtime.dump(), error=error)
     if runtime.timed_out:
         error = Error(
             description="timed out",
             suggestion=f"exceeded maximum elapsed time of {runtime.timeout} seconds")
-        raise CorrectnessResult(passing=False, runtime=runtime.dump(), error=error)
+        return result_type(passing=False, runtime=runtime.dump(), error=error)
     if runtime.code != 0:
         error = Error(
             description=f"received status code {runtime.code}",
             suggestion="expected status code of zero")
-        return CorrectnessResult(passing=False, runtime=runtime.dump(), error=error)
+        return result_type(passing=False, runtime=runtime.dump(), error=error)
+    return None
 
 
-class ExecutableOutputMixin(Configurable):
-    """Meant for reading and comparing stdout."""
+class ProcessExitCodeConnector(Connector):
+    """Output is exit code instead of stdout."""
+
+    def connect(self, runtime: Runtime) -> int:
+        """Return exit code."""
+
+        return runtime.code
+
+
+class ProcessStreamConnector(Connector, Configurable):
+    """Output is stdout or stderr."""
 
     STDOUT = "stdout"
     STDERR = "stderr"
 
-    executable_name: str
-    args: Iterable[str]
-    stdin: Optional[bytes]
-    timeout: Optional[float]
-    cwd: Optional[Path]
     stream: str
 
-    def __init__(
-            self,
-            *,
-            executable_name: str = none,
-            args: Iterable[str] = none,
-            stdin: bytes = none,
-            timeout: float = none,
-            cwd: Path = none,
-            stream: str = none,
-            **kwargs):
-        """Save container information, call super."""
-
-        super().__init__(**kwargs)
-        self.executable_name = executable_name
-        self.args = args
-        self.stdin = stdin
-        self.timeout = timeout
-        self.cwd = cwd
-        self.stream = stream
-
-    def execute(self: Union["ExecutableOutputMixin", OutputTest]) -> Runtime:
-        """Check that it ran correctly, then run the test."""
-
-        executable = self.resources[self.executable_name]
-        runtime = executable.execute(
-            *self.resolve("args", default=()),
-            stdin=self.resolve("stdin", default=None),
-            timeout=self.resolve("timeout", default=None),
-            cwd=self.resolve("cwd", default=None))
-        self.details["runtime"] = runtime.dump()
-        return runtime
-
-    def get_output(self) -> Any:
-        """Return stdout by default."""
-
-        runtime = self.execute()
-        test_runtime_succeeded(runtime)
-        stream = self.resolve("stream", default=self.STDOUT)
-        return getattr(runtime, stream)
-
-
-class ExecutableExitCodeMixin(ExecutableOutputMixin):
-    """Output is exit code instead of stdout."""
-
-    def get_output(self) -> Any:
+    def connect(self, runtime: Runtime) -> bytes:
         """Return exit code."""
 
-        return self.execute().code
+        stream = self.resolve("stream", default=self.STDOUT)
+        if stream == self.STDOUT:
+            return runtime.stdout
+        elif stream == self.STDERR:
+            return runtime.stderr
+        raise ValueError(f"invalid stream type specified in connector: {stream}")
 
 
-class ExecutableInputFileMixin(OutputTest, Configurable):
-    """Enables the use of an input file rather than stdin string."""
-
-    stdin: bytes
-    input_file_path: Path
-
-    def __init__(self, *, input_file_path: Path = none, **kwargs):
-        """Set stdin."""
-
-        super().__init__(**kwargs)
-        self.input_file_path = input_file_path
-        self.stdin = self.resolve("input_file_path").read_bytes()
-
-
-class ExecutableOutputFileMixin(OutputTest, Configurable):
+class OutputFileConnector(Connector, Configurable):
     """Enables the use of an input file rather than stdin string."""
 
     output_file_path: Path
@@ -282,64 +291,15 @@ class ExecutableOutputFileMixin(OutputTest, Configurable):
         super().__init__(**kwargs)
         self.output_file_path = output_file_path
 
-    def get_output(self) -> Any:
+    def connect(self, result: Any) -> bytes:
         """Call super because it might do something."""
 
-        super().get_output()
         output_file_path = self.resolve("output_file_path")
         if not output_file_path.is_file():
             raise CorrectnessResult(passing=False, error=Error(
                 description="no output file",
                 suggestion=f"expected path {output_file_path}"))
         return output_file_path.read_bytes()
-
-
-CompareNativeTest = Callable[[Any], CorrectnessResult]
-
-
-class CompareExitCodeOutputTest(OutputTest, Configurable):
-    """Checks program exit code."""
-
-    test: CompareNativeTest
-    resources: Optional[dict]
-    details: Optional[dict]
-
-    expected_code: int
-    expected_codes: Container[int]
-
-    def __init__(self, *, expected_code: int = none, expected_codes: Container[int] = none, **kwargs):
-        """Set expected codes."""
-
-        super().__init__(**kwargs)
-
-        expected_code = self.resolve("expected_code", local=expected_code, default=None)
-        expected_codes = self.resolve("expected_codes", local=expected_codes, default=None)
-
-        if expected_code is None and expected_codes is None:
-            raise ValueError("Runtime exit test requires either expected status or statuses!")
-        if expected_code is not None:
-            expected_codes = (expected_code,)
-
-        def test(code: int):
-            if code in expected_codes:
-                return CorrectnessResult(passing=True)
-            return CorrectnessResult(
-                passing=False,
-                error=Error(
-                    description=f"received incorrect exit code {code}",
-                    suggestion=f"expected {expected_codes}"))
-
-        self.test = test
-
-
-class GoogleTest(ExecutableExitCodeMixin, CompareExitCodeOutputTest):
-    """Is set up for the gtest.hpp include."""
-
-    expected_code = 0
-
-    def __init__(self, test_name: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.args = (test_name,)
 
 
 def write_then_read(

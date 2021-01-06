@@ -1,9 +1,9 @@
 from curricula.library.valgrind import ValgrindReport, run
-from ..correctness.common import ExecutableOutputMixin
+from ..correctness.common import ProcessExecutor
 from . import MemoryResult
 
 
-class MemoryTest(ExecutableOutputMixin):
+class MemoryTest(ProcessExecutor):
     """Runs valgrind on the executable with given parameters."""
 
     def __call__(self, resources: dict) -> MemoryResult:

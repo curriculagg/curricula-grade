@@ -6,7 +6,10 @@ from ..grader.task import Error
 from . import SetupResult
 
 
-__all__ = ("check_file_exists", "search_file_by_name")
+__all__ = (
+    "check_file_exists",
+    "search_file_by_name",
+    "make_open_interactive",)
 
 
 def check_file_exists(*paths: Path) -> SetupResult:
