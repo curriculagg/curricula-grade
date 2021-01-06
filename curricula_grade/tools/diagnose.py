@@ -22,15 +22,17 @@ def diagnose(assignment: GradingAssignment, assignment_report_path: Path) -> str
             continue
 
         problem_report = assignment_report[problem.short]
-        results_passing_count = sum(1 for _ in filter(lambda p: p.passing, problem_report.results.values()))
+        results = list(problem_report.automated.results.values())
+        results_count = len(results)
+        results_passing_count = sum(1 for _ in filter(lambda p: p.passing, results))
 
         # Problem summary header
-        output.print(f"Problem {problem.short}: {results_passing_count}/{len(problem_report.results.values())}")
+        output.print(f"Problem {problem.short}: {results_passing_count}/{results_count}")
 
         # Iterate results
         output.indent()
         for task in problem.grader.tasks:
-            result = problem_report.get(task.name)
+            result = problem_report.automated.get(task.name)
             if result is None:
                 continue
 
@@ -46,10 +48,10 @@ def diagnose(assignment: GradingAssignment, assignment_report_path: Path) -> str
                     if result.error.traceback:
                         output.print("Traceback: ")
                         output.print(result.error.traceback.strip(), indentation=2)
-                    if result.error.expected:
-                        output.print(f"Expected: {repr(result.error.expected)}")
-                    if result.error.received:
-                        output.print(f"Received: {repr(result.error.received)}")
+                    # if result.error.expected:
+                    #     output.print(f"Expected: {repr(result.error.expected)}")
+                    # if result.error.received:
+                    #     output.print(f"Received: {repr(result.error.received)}")
                 output.dedent()
             else:
                 output.print(f"✓ {task.name} passed")

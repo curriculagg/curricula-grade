@@ -1,24 +1,20 @@
-from typing import AnyStr, List, Sized, Union, Iterable, Collection, Optional, Callable, TypeVar, Any, Sequence
-from pathlib import Path
+import abc
+from typing import AnyStr, List, Sized, Union, Iterable, Collection, Callable, TypeVar, Sequence
 
-from curricula.library.process import Runtime, Interactive, TimeoutExpired, Interaction
+from curricula.library.process import Interactive, TimeoutExpired, Interaction
 from curricula.library.configurable import none, Configurable
-from . import CorrectnessResult, CorrectnessTest
-from .. import Executor, Evaluator, Connector
+from ...common import Evaluator, CompositeRunnable
+from ...common.process import ProcessExecutor, ProcessStreamConnector, ProcessExitCodeConnector
 from ...grader.task import Error
-from ...common import verify_runtime
+from . import CorrectnessResult
 
 __all__ = (
     "as_lines",
     "lines_match",
     "lines_match_unordered",
-    "ProcessExecutor",
-    "ProcessInputFileMixin",
+    "CorrectnessRunnable",
     "CompareBytesEvaluator",
     "CompareExitCodeEvaluator",
-    "ProcessExitCodeConnector",
-    "ProcessStreamConnector",
-    "OutputFileConnector",
     "ProcessCompareStreamTest",
     "ProcessCompareExitCodeTest",
     "write_then_read")
@@ -57,60 +53,10 @@ def lines_match_unordered(a: AnyStrSequence, b: AnyStrSequence) -> bool:
     return lines_match(sorted(a), sorted(b))
 
 
-class ProcessExecutor(Configurable, Executor):
-    """Meant for reading and comparing stdout."""
+class CorrectnessRunnable(CompositeRunnable, metaclass=abc.ABCMeta):
+    """Override annotation."""
 
-    executable_name: str
-    args: Iterable[str]
-    stdin: Optional[bytes]
-    timeout: Optional[float]
-    cwd: Optional[Path]
-    stream: str
-
-    def __init__(
-            self,
-            *,
-            executable_name: str = none,
-            args: Iterable[str] = none,
-            stdin: bytes = none,
-            timeout: float = none,
-            cwd: Path = none,
-            stream: str = none,
-            **kwargs):
-        """Save container information, call super."""
-
-        super().__init__(**kwargs)
-
-        self.executable_name = executable_name
-        self.args = args
-        self.stdin = stdin
-        self.timeout = timeout
-        self.cwd = cwd
-        self.stream = stream
-
-    def execute(self) -> Runtime:
-        """Check that it ran correctly, then run the test."""
-
-        executable = self.resources[self.executable_name]
-        runtime = executable.execute(
-            *self.resolve("args", default=()),
-            stdin=self.resolve("stdin", default=None),
-            timeout=self.resolve("timeout", default=None),
-            cwd=self.resolve("cwd", default=None))
-        self.details["runtime"] = runtime.dump()
-        return runtime
-
-
-class ProcessInputFileMixin(Configurable):
-    """Enables the use of an input file rather than stdin string."""
-
-    input_file_path: Path
-
-    def __init__(self, *, input_file_path: Path = none, **kwargs):
-        """Set stdin to the contents of the file."""
-
-        super().__init__(**kwargs)
-        self.input_file_path = input_file_path
+    result_type = CorrectnessResult
 
 
 BytesTransform = Callable[[bytes], bytes]
@@ -173,12 +119,14 @@ class CompareBytesEvaluator(Configurable, Evaluator):
         test_out = self.resolve("test_out")
 
         out = self.out_transform(out)
-        passing = out == test_out
-        error = None if passing else Error(
-            description="unexpected output",
+        if out == test_out:
+            return CorrectnessResult.shorthand()
+
+        return CorrectnessResult.shorthand(
+            passing=False,
+            error=Error(description="unexpected output"),
             expected=test_out.decode(errors="replace"),
             actual=out.decode(errors="replace"))
-        return CorrectnessResult(passing=passing, error=error)
 
     def _test_out_lines_lists(self, out: bytes) -> CorrectnessResult:
         """Used to compare multiple options of lists of lines."""
@@ -189,13 +137,16 @@ class CompareBytesEvaluator(Configurable, Evaluator):
             test_out_lines_lists = self.test_out_lines_lists
 
         out_lines = tuple(map(self.out_line_transform, self.out_transform(out).split(b"\n")))
-        passing = any(lines_match(out_lines, lines) for lines in test_out_lines_lists)
+
+        if any(lines_match(out_lines, lines) for lines in test_out_lines_lists):
+            return CorrectnessResult.shorthand()
+
         expected = tuple(b"\n".join(test_out_lines).decode(errors="replace") for test_out_lines in test_out_lines_lists)
-        error = None if passing else Error(
-            description="unexpected output",
-            expected=expected[0] if len(expected) == 1 else expected,
-            actual=b"\n".join(out_lines).decode(errors="replace"))
-        return CorrectnessResult(passing=passing, error=error)
+        return CorrectnessResult(
+            passing=False,
+            error=Error(description="unexpected output"),
+            actual=b"\n".join(out_lines).decode(errors="replace"),
+            expected=expected[0] if len(expected) == 1 else expected)
 
 
 class CompareExitCodeEvaluator(Evaluator, Configurable):
@@ -232,65 +183,19 @@ class CompareExitCodeEvaluator(Evaluator, Configurable):
                 suggestion=f"""expected exit code {", ".join(map(str, self._expected_codes))}"""))
 
 
-class ProcessExitCodeConnector(Connector):
-    """Output is exit code instead of stdout."""
-
-    def connect(self, runtime: Runtime) -> int:
-        """Return exit code."""
-
-        self.details.update(runtime=runtime.dump())
-        return runtime.code
-
-
-class ProcessStreamConnector(Configurable, Connector):
-    """Output is stdout or stderr."""
-
-    STDOUT = "stdout"
-    STDERR = "stderr"
-
-    stream: str
-
-    def connect(self, runtime: Runtime) -> bytes:
-        """Return exit code."""
-
-        verify_runtime(runtime, CorrectnessResult)
-        self.details.update(runtime=runtime.dump())
-
-        stream = self.resolve("stream", default=self.STDOUT)
-        if stream == self.STDOUT:
-            return runtime.stdout
-        elif stream == self.STDERR:
-            return runtime.stderr
-        raise ValueError(f"invalid stream type specified in connector: {stream}")
-
-
-class OutputFileConnector(Configurable, Connector):
-    """Enables the use of an input file rather than stdin string."""
-
-    output_file_path: Path
-
-    def __init__(self, *, output_file_path: Path = none, **kwargs):
-        """Set stdin."""
-
-        super().__init__(**kwargs)
-        self.output_file_path = output_file_path
-
-    def connect(self, result: Any) -> bytes:
-        """Call super because it might do something."""
-
-        output_file_path = self.resolve("output_file_path")
-        if not output_file_path.is_file():
-            raise CorrectnessResult(passing=False, error=Error(
-                description="no output file",
-                suggestion=f"expected path {output_file_path}"))
-        return output_file_path.read_bytes()
-
-
-class ProcessCompareStreamTest(ProcessExecutor, ProcessStreamConnector, CompareBytesEvaluator, CorrectnessTest):
+class ProcessCompareStreamTest(
+        ProcessExecutor,
+        ProcessStreamConnector,
+        CompareBytesEvaluator,
+        CorrectnessRunnable):
     """Standard process output test."""
 
 
-class ProcessCompareExitCodeTest(ProcessExecutor, ProcessExitCodeConnector, CompareExitCodeEvaluator, CorrectnessTest):
+class ProcessCompareExitCodeTest(
+        ProcessExecutor,
+        ProcessExitCodeConnector,
+        CompareExitCodeEvaluator,
+        CorrectnessRunnable):
     """Make sure the process exits as expected."""
 
 
@@ -312,13 +217,13 @@ def write_then_read(
                     condition=read_condition,
                     timeout=read_condition_timeout)
             except TimeoutExpired:
-                raise CorrectnessResult(
+                raise CorrectnessResult.shorthand(
                     passing=False,
                     error=Error(description="timed out"),
                     runtime=interaction.dump())
 
     if interaction.stdout is None:
-        raise CorrectnessResult(
+        raise CorrectnessResult.shorthand(
             passing=False,
             error=Error(description="did not receive output"),
             runtime=interaction.dump())

@@ -1,9 +1,9 @@
 import abc
-import inspect
-from typing import Dict, TypeVar, Generic, Any, Type, Set, Optional, List, Union, Tuple, Sequence
+from typing import Dict, TypeVar, Callable, Any, Type, Set, Optional, List, Union
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from curricula.library.inject import inject
 from curricula.log import log
 
 __all__ = ("Message", "Result", "Dependencies", "Task", "Runnable", "Error")
@@ -37,8 +37,6 @@ class Error:
     suggestion: str = None
     location: str = None
     traceback: str = None
-    expected: Any = None
-    actual: Any = None
 
     def dump(self, thin: bool = False) -> dict:
         if thin:
@@ -47,9 +45,7 @@ class Error:
             description=self.description,
             suggestion=self.suggestion,
             location=self.location,
-            traceback=self.traceback,
-            expected=self.expected,
-            actual=self.actual)
+            traceback=self.traceback)
 
     @classmethod
     def load(cls, data: dict) -> "Error":
@@ -71,8 +67,8 @@ class Result(Exception, abc.ABC):
 
     def __init__(
             self,
-            complete: bool,
             passing: bool,
+            complete: bool = True,
             score: Union[Decimal, int, float, str] = None,
             error: Error = None,
             messages: List[Message] = None,
@@ -99,9 +95,7 @@ class Result(Exception, abc.ABC):
             score=str(self.score) if self.score is not None else None,
             error=self.error.dump(thin=thin) if self.error is not None else None,
             messages=[message.dump() for message in self.messages],
-            task=dict(
-                name=self.task.name,
-                description=self.task.description))
+            task=dict(name=self.task.name, description=self.task.description))
         if not thin:
             dump.update(details=self.details)
         return dump
@@ -130,15 +124,15 @@ class Result(Exception, abc.ABC):
 
         return cls(complete=True, passing=True)
 
+    @classmethod
+    def shorthand(cls, passing: bool = True, complete: bool = True, error: Error = None, **details):
+        """Expand details."""
+
+        cls(complete=complete, passing=passing, error=error, details=details)
+
 
 TResult = TypeVar("TResult", bound=Result)
-
-
-class Runnable(Generic[TResult]):
-    """Runnable function that returns some kind of result."""
-
-    def __call__(self, **kwargs) -> TResult:
-        """The signature that will receive dependency injection."""
+Runnable = Callable[[], TResult]
 
 
 @dataclass
@@ -197,13 +191,10 @@ class Task:
     def run(self, resources: Dict[str, Any]) -> Result:
         """Do the dependency injection for the runnable."""
 
-        dependencies = {}
-        for name, parameter in inspect.signature(self.runnable).parameters.items():
-            dependency = resources.get(name, parameter.default)
-            if dependency == parameter.empty:
-                raise ValueError(f"caught in {self.name}: could not satisfy dependency {name}")
-            dependencies[name] = dependency
-        result = self.runnable(**dependencies)
+        try:
+            result = inject(resources, self.runnable)
+        except ValueError as error:
+            raise ValueError(f"caught in {self.name}: {error}")
 
         if result is None:
             log.debug(f"task {self.name} did not return a result")

@@ -1,5 +1,5 @@
 import functools
-from typing import Type, Any, Set, Optional
+from typing import Type, Any, Set, Optional, Callable
 from decimal import Decimal
 
 from curricula.library.debug import get_source_location
@@ -43,14 +43,14 @@ class TaskRegistrar:
 
         self.tasks = TaskCollection()
 
-    def __call__(self, runnable: Any = None, /, **details):
+    def __call__(self, runnable: Any = None, /, **details) -> Optional[Callable[[Runnable], None]]:
         """Explicitly register a runnable."""
 
         if runnable is not None:
             self.register(runnable=runnable, details=details, result_type=self._determine_result_type(runnable))
             return
 
-        def register(r: Runnable):
+        def register(r: Runnable, /):
             self.register(runnable=r, details=details, result_type=self._determine_result_type(r))
         return register
 
@@ -73,7 +73,7 @@ class TaskRegistrar:
             name=TaskRegistrar._resolve_name(runnable, details),
             description=TaskRegistrar._resolve_description(runnable, details),
             dependencies=Dependencies.from_details(details),
-            runnable=runnable,
+            runnable=runnable() if isinstance(runnable, type) else runnable,
             graded=details.pop("graded", True),
             weight=Decimal(w) if is_some(w := details.pop("weight", None)) else None,
             points=Decimal(p) if is_some(p := details.pop("points", None)) else None,
