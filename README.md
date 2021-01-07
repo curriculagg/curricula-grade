@@ -1,18 +1,16 @@
 # Curricula Grade
 
-Grading is the other half of `curricula`'s core functionality.
+The other half of `curricula`'s core functionality is automated grading.
 In order to use automated grading, material writers have to implement tests using the `curricula_grade` toolkit.
 
 ## Writing Tests
 
-While somewhat bulkier than unit-test frameworks, the additional mechanisms backing the `Grader` make it much easier to generate and manage reports for students.
+While somewhat bulkier than unit-test frameworks, the additional syntax and runtime overhead backing the `Grader` make it much easier to generate and manage reports for students.
 Let's walk through an [example](https://github.com/curriculagg/curricula-material-sample/).
 
 ```python3
 from curricula_grade.shortcuts import *
 from curricula_grade.setup.common import check_file_exists
-from curricula_grade.test.correctness.common import ProcessCompareExitCodeTest
-from curricula_grade_cpp import Paths
 from curricula_grade_cpp.setup.common.gpp import gpp_compile_object
 from curricula.library.files import delete_file
 
@@ -24,25 +22,47 @@ grader = Grader()
 GPP_OPTIONS = ("-std=c++14", "-Wall")
 ````
 
-To start off, we include `pathlib` for convenient, file-system-independent path operations.
-We also include several utilities from `curricula_grade` that define `g++` command line options we'll use later.
-Finally, we'll initialize the grader for this problem.
-First, we'll check and make sure that the file we're expecting the student to submit is present in the submission:
+To start off, we include several basic utilities from `curricula_grade`.
+We also import two commons functions, `check_file_exists` and `gpp_compile_object`.
+Lastly, we include `delete_file` and `Path` for generalized file system access.
+
+Using our imports, we create a `Grader` instance to register tasks to.
+The `root` and `GPP_OPTIONS` are just constants for reference that we'll use for convenience later.
+With the boilerplate out of the way, we start by writing a task that checks if a file we're expecting the student to implement is present in the submission:
 
 ```python3
 @grader.register(tags={"sanity"})
-def check_decimal_header(submission: Submission, resources: dict) -> SetupResult:
-    """decimal.hpp present in decimal/"""
+def check_submission(submission: Submission, resources: dict) -> SetupResult:
+    """Check submission.cpp is present."""
 
-    header_path = resources["decimal"] = submission.problem_path.joinpath("decimal.hpp")
+    header_path = resources["source"] = submission.problem_path.joinpath("submission.cpp")
     return check_file_exists(header_path)
 ```
 
-Here, we register a `check` task in the `setup` phase of the grader.
-The `sanity` option indicates that if we run grading on a submission with `--sanity`, this task will be run.
-Note that parameters in tasks are injected, but can also be accessed manually through the `resources` dictionary (`resources['resources'] is resources`).
-In this task, we store the source path of file we're expecting to grade for this problem.
-However, if it doesn't exist, the returned `CorrectnessResult` will indicate to the grader that this task has failed, and that any dependent tasks should not be executed.
+The first thing to notice is the `grader.register` decorator we're using.
+This line indicates to the grader that we want it to run this function, which we'll refer to generally as a `Runnable`, during grading.
+Of the several ways we can register a task to a grader, this is the simplest.
+
+The arguments passed to `grader.register` define metadata about the task.
+In this particular case, we're only specifying a tag that the task falls under.
+We can use tags to specify subsets of tasks to run while grading, which can be useful for sanity checks in an online submission, etc.
+Other metadata that can be assigned in the registration call include the task name and description, which default to the function name and docstring.
+
+When a task is executed, it looks at the arguments in its `Runnable`'s signature and injects the corresponding resources from the resource pool by name.
+We ask for the full resources `dict` by including `resources` as a parameter to the runnable.
+By default, `resources` contains:
+
+- A `Submission`, which describes the submission currently being graded.
+- A `Context`, which includes options passed to the grader, either from the command line or otherwise.
+- A reference to the `resources` map itself.
+- Anything we put in the `resources` map manually.
+  In this particular task, we're putting a new item called `source` into the resource map that points to the path to the file we want to grade.
+  This simply makes it easier to reference later; we can just include a `source` parameter in the `Runnable` signature.
+
+The last important detail in this example is the annotated return type of the `Runnable`, `SetupResult`.
+Because we may find ourselves deserializing grading results down the road (to summarize a batch, generate a formatted report, etc.), we need to somehow indicate what kind of `Result` subclass we're returning.
+Depending on the registration method, there are several ways to do this.
+If we're using decorators, we can either use the function annotation or subscript the decorator registrar as follows: `@grader.register[SetupResult]`.
 
 ```python
 @grader.setup.compile(dependency="check_hello_world", sanity=True)
