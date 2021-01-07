@@ -31,7 +31,7 @@ The `root` and `GPP_OPTIONS` are just constants for reference that we'll use for
 With the boilerplate out of the way, we start by writing a task that checks if a file we're expecting the student to implement is present in the submission:
 
 ```python3
-@grader.register(tags={"sanity"})
+@grader.register(tags={"sanity"}, graded=False)
 def check_submission(submission: Submission, resources: dict) -> SetupResult:
     """Check submission.cpp is present."""
 
@@ -40,7 +40,7 @@ def check_submission(submission: Submission, resources: dict) -> SetupResult:
 ```
 
 The first thing to notice is the `grader.register` decorator we're using.
-This line indicates to the grader that we want it to run this function, which we'll refer to generally as a `Runnable`, during grading.
+This line indicates to the grader that we want it to run this function, which we'll refer to generally as a runnable, during grading.
 Of the several ways we can register a task to a grader, this is the simplest.
 
 The arguments passed to `grader.register` define metadata about the task.
@@ -48,7 +48,7 @@ In this particular case, we're only specifying a tag that the task falls under.
 We can use tags to specify subsets of tasks to run while grading, which can be useful for sanity checks in an online submission, etc.
 Other metadata that can be assigned in the registration call include the task name and description, which default to the function name and docstring.
 
-When a task is executed, it looks at the arguments in its `Runnable`'s signature and injects the corresponding resources from the resource pool by name.
+When a task is executed, it looks at the arguments in its runnable's signature and injects the corresponding resources from the resource pool by name.
 We ask for the full resources `dict` by including `resources` as a parameter to the runnable.
 By default, `resources` contains:
 
@@ -59,29 +59,33 @@ By default, `resources` contains:
   In this particular task, we're putting a new item called `source` into the resource map that points to the path to the file we want to grade.
   This simply makes it easier to reference later; we can just include a `source` parameter in the `Runnable` signature.
 
-The last important detail in this example is the annotated return type of the `Runnable`, `SetupResult`.
-Because we may find ourselves deserializing grading results down the road (to summarize a batch, generate a formatted report, etc.), we need to somehow indicate what kind of `Result` subclass we're returning.
-Depending on the registration method, there are several ways to do this.
-If we're using decorators, we can either use the function annotation or subscript the decorator registrar as follows: `@grader.register[SetupResult]`.
+The last important detail in this example is the annotated return type of the runnable, `SetupResult`.
+Because we may find ourselves deserializing grading results down the road (to summarize a batch, generate a formatted report, etc.), we need to be able to determine what kind of `Result` subclass we're expecting without executing the runnable.
+If we use a decorator to register the runnable, it must either have an annotated return type, an attribute `result_type`, or you must subscript the registrar with the result type.
 
-```python
-@grader.setup.compile(dependency="check_hello_world", sanity=True)
-def build_hello_world(hello_world_source_path: Path, resources: dict):
-    """Compile the program with gcc."""
+Let's move on to compiling our submission.
 
-    resources["hello_world_path"] = Path("/tmp", "hello_world")
-    result, resources["hello_world"] = build_gpp_executable(
-        source_path=hello_world_source_path,
-        destination_path=resources["hello_world_path"],
+```python3
+@grader.register(passing={"check_submission"}, tags={"sanity"}, graded=False)
+def build_submission(source: Path, resources: dict) -> SetupResult:
+    """Compile the submission."""
+
+    result, resources["binary"] = gpp_compile_object(
+        source,
+        destination_path=source.parent.joinpath("binary"),
         gpp_options=GPP_OPTIONS)
     return result
 ```
 
-This segment builds the submitted `hello_world.cpp` file with `g++`.
-As specified by the registration decorator, this task depends on `check_hello_world` passing.
-If a task has multiple dependencies, `dependencies=["check_hello_world", ...]` may be used instead.
-In the task method, a custom `ExecutableFile` will be inserted into `resources`, and the `BuildResult` from the build function will be returned to the grader.
-Note that both [`build_gpp_exectuable`](curricula/grade/setup/build/common.py) and [`check_file_exists`](curricula/grade/setup/check/common.py) are just convenience methods that reduce code.
+This segment builds a file `submission.cpp` in a target directory using `g++`.
+As specified by the registrar invocation, this task depends on `check_submission` passing.
+If `check_submission` returns a `SetupResult(passing=False)`, this task will never be executed.
+
+Our call to `gpp_compile_object` here does exactly what you might expect: invokes `g++` in a subprocess to compile the C++ file.
+You can take a look at the source in the [`curricula_grade_cpp`](https://github.com/curriculagg/curricula-grade-cpp/blob/master/curricula_grade_cpp/setup/common/gpp.py) library.
+Notice that nothing there is particularly fancy or magical; it's simply boilerplate I've encapsulated for convenience.
+
+Next, we'll actually run a test.
 
 ```python
 @grader.test.correctness(dependency="build_hello_world")
