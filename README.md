@@ -2,11 +2,13 @@
 
 The other half of `curricula`'s core functionality is automated grading.
 In order to use automated grading, material writers have to implement tests using the `curricula_grade` toolkit.
+Automated grading for individual problems can be combined into composite assignments, complete with problem weights and other metadata.
 
 ## Writing Tests
 
 While somewhat bulkier than unit-test frameworks, the additional syntax and runtime overhead backing the `Grader` make it much easier to generate and manage reports for students.
 Let's walk through an [example](https://github.com/curriculagg/curricula-material-sample/).
+Note that we'll be using `curricula_grade_cpp` as our example assignment is written in C++, but the framework itself is language-agnostic.
 
 ```python3
 from curricula_grade.shortcuts import *
@@ -207,6 +209,64 @@ def cleanup_submission(binary: ExecutableFile):
 
     delete_file(binary.path)
 ```
+
+## Running the Grader
+
+In order to grade an assignment, you will first need to make sure that you've constructed the grading artifact correctly.
+It is recommended you use [`curricula-compile`](https://github.com/curriculagg/curricula-compile) for this, but if you insist on doing it manually, the following directory structure is required:
+
+```
+grading/
+  index.json
+  problem1/
+    tests.py
+    ...
+  problem2/
+    tests.py
+    ...
+  ...
+```
+
+Once you've created the grading artifact, you can run grading from the command line.
+Currently, the options are as follow:
+
+```
+usage: curricula grade run [-h] --grading GRADING [--skip] [--report] [--concise] [--progress] [--sample SAMPLE] [--tags TAGS [TAGS ...]] [--tasks TASKS [TASKS ...]] [--summarize] [--thin] [--amend]
+                           (-f FILE | -d DIRECTORY)
+                           submissions [submissions ...]
+
+positional arguments:
+  submissions           run tests on a single target
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --grading GRADING, -g GRADING
+                        the grading artifact
+  --skip                skip reports that have already been run
+  --report, -r          whether to log test results
+  --concise, -c         whether to report concisely
+  --progress, -p        show progress in batch
+  --sample SAMPLE       randomly sample batch
+  --tags TAGS [TAGS ...]
+                        only run tasks with the specified tags
+  --tasks TASKS [TASKS ...]
+                        only run the specified tasks
+  --summarize           summarize after running batch
+  --thin                shorten output for space
+  --amend               amend any existing report at the destination
+  -f FILE, --file FILE  output file for single report
+  -d DIRECTORY, --directory DIRECTORY
+                        where to write reports to if batched
+```
+
+If you have all of the submissions in a folder by username, i.e. `submissions/noahbkim` etc., you would do something like this:
+
+```shell
+$ curricula grade run --grading grading/ --progress --concise --summarize submissions/*/ -d reports/
+```
+
+Once the grader is finished, there will be a `*.report.json` file in `reports/` corresponding to each of the submissions in the arguments.
+You can then use included tools to format these reports in Markdown, etc.
 
 ## Grader Output
 
