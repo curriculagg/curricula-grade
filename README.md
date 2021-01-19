@@ -130,27 +130,170 @@ We can determine whether this submission prints what we expect it to by comparin
 If it's not `2`, we return a failing result with some extra details on what happened.
 Otherwise, we return a passing result.
 
-However, note that the registration decorator can be used inline to register a generated task.
-In other words, test cases that simply compare input and output files can simply be dynamically registered with a for loop rather than be written out manually.
+### Cleanup
+
+Finally, let's add a cleanup task to avoid leaving extraneous files in our submissions.
+The only thing we have to do is delete our binary, which we can again ask for via injected arguments:
 
 ```python
-@grader.teardown.cleanup(dependency="build_hello_world")
-def cleanup_hello_world(hello_world_path: Path):
-    """Clean up executables."""
+@grader.register[CleanupResult](tags={"sanity"}, graded=False)
+def cleanup_submission(binary: ExecutableFile):
+    """Delete the binary."""
 
-    if hello_world_path.is_file():
-        files.delete_file(hello_world_path)
+    delete_file(binary.path)
 ````
 
-In this last segment, the built binary is deleted.
-Not returning a result in a task registered in the `teardown` phase will cause the grader to generate a default `TeardownResult` with a passing status.
-Note that `build_hello_world`, `test_hello_world_output`, and `cleanup_hello_world` all depend on `build_hello_world`.
-If the latter does not pass, neither will any of the former.
+Notice something new is going on here: instead of using the return annotation, we're providing the result type via bracket notation in the registration decorator.
+Why?
+If a runnable returns None, the task executor will attempt to instantiate a default `result_type`.
+In this case, it will substitute a `CleanupResult.default()` for the result automatically.
+It would not be semantically correct to use a return annotation on this runnable because it does not return anything, and so a secondary mechanism is provided to specify `result_type`, i.e. `grader.register[result_type]`.
+
+### Summary
+
+The entire grading script is as follows:
+
+```python
+from curricula_grade.shortcuts import *
+from curricula_grade.setup.common import check_file_exists
+from curricula_grade_cpp.setup.common.gpp import gpp_compile_object
+from curricula.library.files import delete_file
+
+from pathlib import Path
+
+root = Path(__file__).absolute().parent
+grader = Grader()
+
+GPP_OPTIONS = ("-std=c++14", "-Wall")
+
+
+@grader.register(tags={"sanity"}, graded=False)
+def check_submission(submission: Submission, resources: dict) -> SetupResult:
+    """Check submission.cpp is present."""
+
+    header_path = resources["source"] = submission.problem_path.joinpath("submission.cpp")
+    return check_file_exists(header_path)
+
+
+@grader.register(passing={"check_submission"}, tags={"sanity"}, graded=False)
+def build_submission(source: Path, resources: dict) -> SetupResult:
+    """Compile the submission."""
+
+    result, resources["binary"] = gpp_compile_object(
+        source,
+        destination_path=source.parent.joinpath("binary"),
+        gpp_options=GPP_OPTIONS)
+    return result
+
+
+@grader.register()
+def test_simple_addition(binary: ExecutableFile) -> CorrectnessResult:
+    """Check 1 + 1."""
+
+    runtime = binary.execute("1", "1")
+    if runtime.stdout.strip() != b"2":
+        return CorrectnessResult(
+            passing=False,
+            actual=runtime.stdout.strip().decode(),
+            expected="2",
+            error=Error(description="incorrect result"),
+            details=dict(runtime=runtime.dump()))
+    return CorrectnessResult(passing=True)
+
+
+@grader.register[CleanupResult](tags={"sanity"}, graded=False)
+def cleanup_submission(binary: ExecutableFile):
+    """Delete the binary."""
+
+    delete_file(binary.path)
+```
 
 ## Grader Output
 
 Grading an assignment will yield a serializable `AssignmentReport`, which is composed of `ProblemReport` objects for each problem graded automatically.
-For the `hello_world` solution, the following report was generated.
+This report, formatted as JSON, will look something like this:
 
-Using these two data sources, the grader can format each report into a readable file.
-This functionality is provided in the `tools` package of `curricula.grade`.
+```json
+{
+  "problem": {
+    "short": "test",
+    "title": "Test"
+  },
+  "automated": {
+    "partial": false,
+    "results": {
+      "check_submission": {
+        "complete": true,
+        "passing": true,
+        "score": null,
+        "error": null,
+        "messages": [],
+        "task": {
+          "name": "check_submission",
+          "description": "Check submission.cpp is present."
+        },
+        "details": {}
+      },
+      "build_submission": {
+        "complete": true,
+        "passing": true,
+        "score": null,
+        "error": null,
+        "messages": [],
+        "task": {
+          "name": "build_submission",
+          "description": "Compile the submission."
+        },
+        "details": {
+          "runtime": {
+            "args": [
+              "g++",
+              "/Users/noahbkim/Repositories/curricula/curricula-grade-cpp/example/submission.cpp",
+              "-std=c++14",
+              "-Wall",
+              "-o",
+              "/Users/noahbkim/Repositories/curricula/curricula-grade-cpp/example/binary"
+            ],
+            "cwd": null,
+            "stdin": null,
+            "stdout": "",
+            "stderr": "",
+            "elapsed": 1.189917291,
+            "code": 0,
+            "timeout": null,
+            "timed_out": false,
+            "raised_exception": false,
+            "exception": null
+          }
+        }
+      },
+      "test_simple_addition": {
+        "complete": true,
+        "passing": true,
+        "score": null,
+        "error": null,
+        "messages": [],
+        "task": {
+          "name": "test_simple_addition",
+          "description": "Check 1 + 1."
+        },
+        "details": {},
+        "expected": null,
+        "actual": null
+      },
+      "cleanup_submission": {
+        "complete": true,
+        "passing": true,
+        "score": null,
+        "error": null,
+        "messages": [],
+        "task": {
+          "name": "cleanup_submission",
+          "description": "Delete the binary."
+        },
+        "details": {}
+      }
+    }
+  }
+}
+```
