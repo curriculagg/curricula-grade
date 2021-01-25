@@ -14,7 +14,7 @@ spec.loader.exec_module(module)
 
 setup(
     name="curricula-grade",
-    version=module.__version__,
+    version=module.version,
     description="A grading toolkit for evaluating student code.",
     url="https://github.com/curriculagg/curricula",
     author="Noah Kim",
@@ -30,5 +30,5 @@ setup(
     # Packaging
     packages=find_packages(),
     include_package_data=True,
-    install_requires=[f"curricula=={module.__version__}"],
+    install_requires=[f"curricula=={module.version}"],
     zip_safe=False)
