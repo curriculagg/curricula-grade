@@ -85,7 +85,7 @@ class TaskRegistrar:
     def weight(self) -> Decimal:
         """Combined weight of all graded tasks."""
 
-        return sum(map(lambda t: t.weight, filter(lambda t: t.graded, self.tasks)), Decimal(0))
+        return sum(map(lambda t: t.weight or 1, filter(lambda t: t.graded, self.tasks)), Decimal(0))
 
     @staticmethod
     def _determine_result_type(runnable: Runnable) -> Type[Result]:

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..models import GradingAssignment
+from ..setup import SetupResult
 from ..grader.report import AssignmentReport
 from ..grader.task import Task
 
@@ -87,10 +88,10 @@ def build_student_summary(summary: Summary, assignment: GradingAssignment, repor
     for problem_short, problem_report in report.problems.items():
         problem_summary = summary.problems[problem_short]
 
-        for task_name, result in problem_report.results.items():
+        for task_name, result in problem_report.automated.results.items():
             task_summary = problem_summary.tasks[task_name]
             task = task_summary.task
-            if task.stage == "setup" and not result.passing:
+            if issubclass(task.result_type, SetupResult) and not result.passing:
                 summary.failed_setup.add(report_name)
                 problem_summary.failed_setup.add(report_name)
 
@@ -125,7 +126,7 @@ def percent(x: Union[int, float], n: int = 1) -> str:
 
 
 def filter_tests(tasks: List[Task]) -> List[Task]:
-    return [task for task in tasks if task.stage == "test"]
+    return [task for task in tasks if task.graded]
 
 
 def summarize(grading_path: Path, report_paths: Iterable[Path]):

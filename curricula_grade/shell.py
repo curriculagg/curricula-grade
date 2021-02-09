@@ -114,7 +114,7 @@ class GradeRunPlugin(Plugin):
         log.debug(f"running single target {assignment_path}")
         assignment = GradingAssignment.read(grading_path)
 
-        report = run(assignment, assignment_path, options=vars(options))
+        report = run(assignment, assignment_path, options=options)
         report_path = path_from_options(options, make_report_name(assignment_path, "json"), batch=False)
         if options["amend"] and report_path.is_file():
             report = amend_report(assignment, report_path, report)
@@ -157,7 +157,7 @@ class GradeRunPlugin(Plugin):
             target_paths = random.sample(target_paths, sample)
 
         report_paths = []
-        for i, (target_path, report) in enumerate(run_batch(assignment, target_paths, options=vars(options))):
+        for i, (target_path, report) in enumerate(run_batch(assignment, target_paths, options=options)):
             report_path = path_from_options(options, make_report_name(target_path, "json"), batch=True)
             if options["amend"] and report_path.is_file():
                 report = amend_report(assignment, report_path, report)
@@ -186,6 +186,7 @@ class GradeSummarizePlugin(Plugin):
     def setup(self, parser: argparse.ArgumentParser):
         """No options."""
 
+        parser.add_argument("--grading", "-g", required=True, help="the grading artifact")
         parser.add_argument("reports", nargs="+", help="the reports to summarize")
 
     def main(self, parser: argparse.ArgumentParser, arguments: dict):
@@ -196,7 +197,7 @@ class GradeSummarizePlugin(Plugin):
             raise PluginException("grading artifact does not exist!")
 
         from .tools.summarize import summarize
-        summarize(grading_path, arguments["reports"])
+        summarize(grading_path, list(map(Path, arguments["reports"])))
 
 
 class GradeDiagnosePlugin(Plugin):

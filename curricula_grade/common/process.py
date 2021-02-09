@@ -1,9 +1,9 @@
-from typing import Iterable, Optional, Any
+from typing import Iterable, Optional, Any, Type
 from pathlib import Path
 
 from curricula.library.configurable import Configurable, none
 from curricula.library.process import Runtime
-from ..grader.task import Error
+from ..grader.task import Error, Result
 from . import Executor, Connector
 
 
@@ -116,23 +116,29 @@ class OutputFileConnector(Configurable, Connector):
         return output_file_path.read_bytes()
 
 
+def verify_runtime(runtime: Runtime, result_type: Type[Result]) -> Runtime:
+    """Basic checks on runtime post conditions."""
+
+    if runtime.raised_exception:
+        error = Error(description=runtime.exception.description)
+        raise result_type(complete=True, passing=False, error=error, details=dict(runtime=runtime.dump()))
+    if runtime.timed_out:
+        error = Error(
+            description="timed out",
+            suggestion=f"exceeded maximum elapsed time of {runtime.timeout} seconds")
+        raise result_type(complete=True, passing=False, error=error, details=dict(runtime=runtime.dump()))
+    if runtime.code != 0:
+        error = Error(
+            description=f"received status code {runtime.code}",
+            suggestion="expected status code of zero")
+        raise result_type(complete=True, passing=False, error=error, details=dict(runtime=runtime.dump()))
+    return runtime
+
+
 class VerifyRuntimeConnector(Connector):
     """Determine whether a runtime succeeded."""
 
     def connect(self, runtime: Runtime) -> Runtime:
         """See if the runtime raised exceptions or returned status code."""
 
-        if runtime.raised_exception:
-            error = Error(description=runtime.exception.description)
-            raise self.result_type(complete=True, passing=False, error=error, details=dict(runtime=runtime.dump()))
-        if runtime.timed_out:
-            error = Error(
-                description="timed out",
-                suggestion=f"exceeded maximum elapsed time of {runtime.timeout} seconds")
-            raise self.result_type(complete=True, passing=False, error=error, details=dict(runtime=runtime.dump()))
-        if runtime.code != 0:
-            error = Error(
-                description=f"received status code {runtime.code}",
-                suggestion="expected status code of zero")
-            raise self.result_type(complete=True, passing=False, error=error, details=dict(runtime=runtime.dump()))
-        return runtime
+        return verify_runtime(runtime, self.result_type)
