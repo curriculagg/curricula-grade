@@ -8,13 +8,13 @@ root = Path(__file__).absolute().parent
 with root.joinpath("README.md").open() as fh:
     long_description = fh.read()
 
-spec = importlib.util.spec_from_file_location("curricula_grade", str(root.joinpath("curricula_grade", "__init__.py")))
+spec = importlib.util.spec_from_file_location("curricula_grade", str(root.joinpath("curricula_grade", "version.py")))
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 setup(
     name="curricula-grade",
-    version=module.__version__,
+    version=module.version,
     description="A grading toolkit for evaluating student code.",
     url="https://github.com/curriculagg/curricula",
     author="Noah Kim",
@@ -30,5 +30,5 @@ setup(
     # Packaging
     packages=find_packages(),
     include_package_data=True,
-    install_requires=[f"curricula=={module.__version__}"],
+    install_requires=[f"curricula=={module.version}"],
     zip_safe=False)
