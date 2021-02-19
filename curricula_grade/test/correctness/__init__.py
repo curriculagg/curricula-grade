@@ -57,4 +57,3 @@ class CorrectnessResult(Result):
             actual=actual,
             expected=expected,
             details=details)
-

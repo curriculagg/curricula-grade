@@ -43,7 +43,14 @@ class GradingProblem(Problem):
 
     @property
     def automated_point_ratio(self) -> Decimal:
-        return self.grading.automated.points / self.grader.weight()
+        return self.grading.automated.points / self.grader.register.weight()
+
+    def percentage(self) -> Decimal:
+        """Percentage weight of the problem in the assignment."""
+
+        if self.assignment.grading.weight() == 0:
+            return Decimal(0)
+        return self.grading.weight / self.assignment.grading.weight()
 
     @classmethod
     def read(cls, data: dict, path: Path) -> "GradingProblem":

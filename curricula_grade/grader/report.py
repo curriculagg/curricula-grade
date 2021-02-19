@@ -160,6 +160,9 @@ class AssignmentReport:
             timestamp=serialize_datetime(self.timestamp),
             problems={short: report.dump(thin=thin) for short, report in self.problems.items()})
 
+    def partial(self) -> bool:
+        return any(problem.automated.partial for problem in self.problems.values())
+
     @classmethod
     def create(cls, assigment: "GradingAssignment") -> "AssignmentReport":
         """Create from assignment for metadata."""

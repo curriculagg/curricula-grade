@@ -68,7 +68,7 @@ class TaskRegistrar:
 
         return register
 
-    def register(self, runnable: Any, details: dict, result_type: Type[Result]):
+    def register(self, runnable: Any, details: dict, result_type: Type[Result] = None):
         self.tasks.push(Task(
             name=TaskRegistrar._resolve_name(runnable, details),
             description=TaskRegistrar._resolve_description(runnable, details),
@@ -79,21 +79,23 @@ class TaskRegistrar:
             points=Decimal(p) if is_some(p := details.pop("points", None)) else None,
             source=get_source_location(1),
             tags=TaskRegistrar._resolve_tags(details),
-            result_type=result_type,
+            result_type=self._determine_result_type(runnable, result_type),
             details=details))
 
     def weight(self) -> Decimal:
         """Combined weight of all graded tasks."""
 
-        return sum(map(lambda t: t.weight, filter(lambda t: t.graded, self.tasks)), Decimal(0))
+        return sum(map(lambda t: t.weight or 1, filter(lambda t: t.graded, self.tasks)), Decimal(0))
 
     @staticmethod
-    def _determine_result_type(runnable: Runnable) -> Type[Result]:
+    def _determine_result_type(runnable: Runnable, fallback: Type[Result] = None) -> Type[Result]:
         result_type_candidate = None
         if is_some(annotations := getattr(runnable, "__annotations__", None)):
             result_type_candidate = annotations.get("return")
         if result_type_candidate is None:
             result_type_candidate = getattr(runnable, "result_type", None)
+        if result_type_candidate is None:
+            result_type_candidate = fallback
         if result_type_candidate is None:
             raise GraderException("result type must be specified by return annotation or bracket notation")
         if not issubclass(result_type_candidate, Result):
