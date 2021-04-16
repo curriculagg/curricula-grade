@@ -25,28 +25,26 @@ class ProcessExecutor(Configurable, Executor):
             stdin: bytes = none,
             timeout: float = none,
             cwd: Path = none,
-            stream: str = none,
             **kwargs):
         """Save container information, call super."""
 
         super().__init__(**kwargs)
 
-        self.executable_name = executable_name
-        self.args = args
-        self.stdin = stdin
-        self.timeout = timeout
-        self.cwd = cwd
-        self.stream = stream
+        self.executable_name = self.resolve("executable_name", local=executable_name)
+        self.args = self.resolve("args", local=args, default=())
+        self.stdin = self.resolve("stdin", local=stdin, default=None)
+        self.timeout = self.resolve("timeout", local=timeout, default=None)
+        self.cwd = self.resolve("cwd", local=cwd, default=None)
 
     def execute(self) -> Runtime:
         """Check that it ran correctly, then run the test."""
 
         executable = self.resources[self.executable_name]
         runtime = executable.execute(
-            *self.resolve("args", default=()),
-            stdin=self.resolve("stdin", default=None),
-            timeout=self.resolve("timeout", default=None),
-            cwd=self.resolve("cwd", default=None))
+            *self.args,
+            stdin=self.stdin,
+            timeout=self.timeout,
+            cwd=self.cwd)
         self.details["runtime"] = runtime.dump()
         return runtime
 
