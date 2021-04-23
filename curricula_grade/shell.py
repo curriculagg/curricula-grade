@@ -89,6 +89,8 @@ class GradeRunPlugin(Plugin):
         parser.add_argument("--summarize", action="store_true", help="summarize after running batch")
         parser.add_argument("--thin", action="store_true", help="shorten output for space")
         parser.add_argument("--amend", action="store_true", help="amend any existing report at the destination")
+        parser.add_argument("--format", action="store_true", help="also format generated reports")
+        parser.add_argument("--format-template", type=str, help="the template directory to generate reports from")
         to_group = parser.add_mutually_exclusive_group(required=True)
         to_group.add_argument("-f", "--file", dest="file", help="output file for single report")
         to_group.add_argument("-d", "--directory", dest="directory", help="where to write reports to if batched")
@@ -121,6 +123,9 @@ class GradeRunPlugin(Plugin):
 
         with report_path.open("w") as file:
             dump_report(report, file, thin=options.get("thin"))
+
+        if options.get("format"):
+            cls.format(grading_path, assignment, report_path, options)
 
         return 0
 
@@ -170,11 +175,30 @@ class GradeRunPlugin(Plugin):
             if options.get("progress"):
                 print(f"{i + 1}/{len(target_paths)} graded")
 
+            if options.get("format"):
+                cls.format(grading_path, assignment, report_path, options)
+
         if options.get("summarize"):
             from curricula_grade.tools.summarize import summarize
             summarize(grading_path, report_paths)
 
         return 0
+
+    @classmethod
+    def format(cls, grading_path: Path, assignment: GradingAssignment, report_path: Path, options: dict):
+        from curricula_format import format_report_markdown, create_format_environment
+
+        custom_template_path = Path(options.get("format_template") or grading_path.joinpath("report.md"))
+        environment = create_format_environment(custom_template_path=custom_template_path)
+
+        formatted_report_path = report_path.parent.joinpath(change_extension(report_path, "md"))
+        formatted_report = format_report_markdown(
+            assignment=assignment,
+            report_path=report_path,
+            environment=environment,
+            options=options)
+        with formatted_report_path.open("w") as file:
+            file.write(formatted_report)
 
 
 class GradeSummarizePlugin(Plugin):

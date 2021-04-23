@@ -30,5 +30,5 @@ setup(
     # Packaging
     packages=find_packages(),
     include_package_data=True,
-    install_requires=[f"curricula=={module.version}"],
+    install_requires=[f"curricula~={module.version}"],
     zip_safe=False)
