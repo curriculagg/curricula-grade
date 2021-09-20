@@ -53,6 +53,9 @@ def lines_match_unordered(a: AnyStrSequence, b: AnyStrSequence) -> bool:
     return lines_match(sorted(a), sorted(b))
 
 
+LineMatcher = Callable[[AnyStrSequence, AnyStrSequence], bool]
+
+
 class CorrectnessRunnable(CompositeRunnable, metaclass=abc.ABCMeta):
     """Override annotation."""
 
@@ -75,6 +78,7 @@ class CompareBytesEvaluator(Configurable, Evaluator):
     test_out: bytes
     test_out_lines: Iterable[bytes]
     test_out_lines_lists: Iterable[Iterable[bytes]]
+    matcher: LineMatcher
 
     def __init__(
             self,
@@ -84,6 +88,7 @@ class CompareBytesEvaluator(Configurable, Evaluator):
             test_out: bytes = none,
             test_out_lines: Iterable[bytes] = none,
             test_out_lines_lists: Iterable[Iterable[bytes]] = none,
+            matcher: LineMatcher = none,
             **kwargs):
         """Build a test for matching stdout output.
 
@@ -97,9 +102,12 @@ class CompareBytesEvaluator(Configurable, Evaluator):
         self.test_out = self.resolve("test_out", local=test_out, default=None)
         self.test_out_lines = self.resolve("test_out_lines", local=test_out_lines, default=None)
         self.test_out_lines_lists = self.resolve("test_out_lines_lists", local=test_out_lines_lists, default=None)
+        self.matcher = self.resolve("matcher", local=matcher, default=lines_match_unordered)
 
         # Check resolvable
-        resolvable = tuple(filter(None, (self.test_out, self.test_out_lines, self.test_out_lines_lists)))
+        resolvable = tuple(filter(
+            lambda x: x is not None,
+            (self.test_out, self.test_out_lines, self.test_out_lines_lists)))
         if len(resolvable) != 1:
             raise ValueError("Exactly one of test_out, test_out_lines, or test_out_lines_lists is required")
 
@@ -136,9 +144,9 @@ class CompareBytesEvaluator(Configurable, Evaluator):
         else:
             test_out_lines_lists = self.test_out_lines_lists
 
-        out_lines = tuple(map(self.out_line_transform, self.out_transform(out).split(b"\n")))
+        out_lines = tuple(map(self.out_line_transform, self.out_transform(out).splitlines(keepends=False)))
 
-        if any(lines_match(out_lines, lines) for lines in test_out_lines_lists):
+        if any(self.matcher(out_lines, lines) for lines in test_out_lines_lists):
             return CorrectnessResult.shorthand()
 
         expected = tuple(b"\n".join(test_out_lines).decode(errors="replace") for test_out_lines in test_out_lines_lists)
