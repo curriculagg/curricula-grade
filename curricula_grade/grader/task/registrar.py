@@ -116,6 +116,7 @@ class TaskRegistrar:
 
     @staticmethod
     def _resolve_tags(details: dict) -> Set[str]:
-        if isinstance(tags := details.pop("tags", set()), set):
+        tags = details.get("tags") or set()
+        if isinstance(tags, set):
             return tags
         raise GraderException("tags must either be a set of strings or None")

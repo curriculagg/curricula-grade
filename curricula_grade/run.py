@@ -13,7 +13,7 @@ def _run(assignment: GradingAssignment, submission_path: Path, options: dict) ->
     """Actual runtime."""
 
     report = AssignmentReport.create(assignment)
-    context = Context(options=options)
+    context = Context.from_options(options=options)
     for problem in filter(lambda p: p.grading.is_automated, assignment.problems):
         log.debug(f"running problem {problem.short}")
         submission = Submission(
