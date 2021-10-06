@@ -83,6 +83,7 @@ class CompositeRunnable(Runnable, metaclass=abc.ABCMeta):
         intermediate = self.execute()
         if (connect := getattr(self, "connect", None)) is not None:
             intermediate = connect(intermediate)
+
         result = self.evaluate(intermediate)
         result.details.update(self.details)
         return result

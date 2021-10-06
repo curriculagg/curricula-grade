@@ -61,59 +61,6 @@ class ProcessInputFileMixin(Configurable):
         self.input_file_path = input_file_path
 
 
-class ProcessExitCodeConnector(Connector):
-    """Output is exit code instead of stdout."""
-
-    def connect(self, runtime: Runtime) -> int:
-        """Return exit code."""
-
-        self.details.update(runtime=runtime.dump())
-        return runtime.code
-
-
-class ProcessStreamConnector(Configurable, Connector):
-    """Output is stdout or stderr."""
-
-    STDOUT = "stdout"
-    STDERR = "stderr"
-
-    stream: str
-
-    def connect(self, runtime: Runtime) -> bytes:
-        """Return exit code."""
-
-        self.details.update(runtime=runtime.dump())
-        stream = self.resolve("stream", default=self.STDOUT)
-        if stream == self.STDOUT:
-            return runtime.stdout
-        elif stream == self.STDERR:
-            return runtime.stderr
-        raise ValueError(f"invalid stream type specified in connector: {stream}")
-
-
-class OutputFileConnector(Configurable, Connector):
-    """Enables the use of an input file rather than stdin string."""
-
-    output_file_path: Path
-
-    def __init__(self, *, output_file_path: Path = none, **kwargs):
-        """Set stdin."""
-
-        super().__init__(**kwargs)
-        self.output_file_path = output_file_path
-
-    def connect(self, result: Any) -> bytes:
-        """Call super because it might do something."""
-
-        output_file_path = self.resolve("output_file_path")
-        if not output_file_path.is_file():
-            raise self.result_type(
-                complete=True,
-                passing=False,
-                error=Error(description="no output file", suggestion=f"expected path {output_file_path}"))
-        return output_file_path.read_bytes()
-
-
 def verify_runtime(runtime: Runtime, result_type: Type[Result]) -> Runtime:
     """Basic checks on runtime post conditions."""
 
@@ -140,3 +87,60 @@ class VerifyRuntimeConnector(Connector):
         """See if the runtime raised exceptions or returned status code."""
 
         return verify_runtime(runtime, self.result_type)
+
+
+class ProcessExitCodeConnector(Connector):
+    """Output is exit code instead of stdout."""
+
+    def connect(self, runtime: Runtime) -> int:
+        """Return exit code."""
+
+        verify_runtime(runtime, self.result_type)
+        self.details.update(runtime=runtime.dump())
+        return runtime.code
+
+
+class ProcessStreamConnector(Configurable, Connector):
+    """Output is stdout or stderr."""
+
+    STDOUT = "stdout"
+    STDERR = "stderr"
+
+    stream: str
+
+    def connect(self, runtime: Runtime) -> bytes:
+        """Return exit code."""
+
+        verify_runtime(runtime, self.result_type)
+
+        self.details.update(runtime=runtime.dump())
+        stream = self.resolve("stream", default=self.STDOUT)
+        if stream == self.STDOUT:
+            return runtime.stdout
+        elif stream == self.STDERR:
+            return runtime.stderr
+
+        raise ValueError(f"invalid stream type specified in connector: {stream}")
+
+
+class OutputFileConnector(Configurable, Connector):
+    """Enables the use of an input file rather than stdin string."""
+
+    output_file_path: Path
+
+    def __init__(self, *, output_file_path: Path = none, **kwargs):
+        """Set stdin."""
+
+        super().__init__(**kwargs)
+        self.output_file_path = output_file_path
+
+    def connect(self, result: Any) -> bytes:
+        """Call super because it might do something."""
+
+        output_file_path = self.resolve("output_file_path")
+        if not output_file_path.is_file():
+            raise self.result_type(
+                complete=True,
+                passing=False,
+                error=Error(description="no output file", suggestion=f"expected path {output_file_path}"))
+        return output_file_path.read_bytes()
